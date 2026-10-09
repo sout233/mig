@@ -1,0 +1,33 @@
+[package]
+name = "mig"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+ui-verify = ["gpui-kit/test-support"]
+
+[dependencies]
+gpui-kit = "0.7.1"
+rodio = "0.20.1"
+rfd = { version = "0.17.2", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rquickjs = "0.11.0"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "brotli"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"] }
+sha2 = "0.10"
+md-5 = "0.10"
+base64 = "0.22"
+flate2 = "1"
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+rsa = "0.9"
+getrandom = "0.3"
+url = "2"
+color-thief = "0.2.2"
+palette = { version = "0.7.6", default-features = false, features = ["std"] }
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+lofty = "0.25.4"
+
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3.0.12"

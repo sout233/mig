@@ -1,0 +1,15 @@
+/target/
+
+# Temporary files
+.tmp*
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

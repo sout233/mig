@@ -1,0 +1,2 @@
+// GPUI loads resource 1 as the application window icon on Windows.
+1 ICON "icons/mig_icon_512.ico"
