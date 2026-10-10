@@ -15,7 +15,7 @@ pub(super) struct ExpandedTransition {
 
 impl ExpandedTransition {
     fn duration(&self) -> f32 {
-        if self.closing { 0.85 } else { 1.10 }
+        if self.closing { 0.85 } else { 0.70 }
     }
 }
 
@@ -745,7 +745,7 @@ impl MigApp {
         let Some((from, to, started)) = self.bottom_cover_fade else {
             return 1.;
         };
-        let duration = if to < from { 0.2 } else { 1.5 };
+        let duration = if to < from { 0.15 } else { 1.0 };
         let progress = (started.elapsed().as_secs_f32() / duration).min(1.);
         from + (to - from) * progress
     }
