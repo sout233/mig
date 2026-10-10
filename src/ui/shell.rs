@@ -630,5 +630,22 @@ impl Render for MigApp {
                     )
             }))
             .children(self.render_cover_morph(window, cx))
+            .children(self.queue_popup.as_ref().map(|popup| {
+                deferred(
+                    anchored().child(
+                        div()
+                            .w(window.bounds().size.width)
+                            .h(window.bounds().size.height)
+                            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                            .child(
+                                anchored()
+                                    .position(popup.position)
+                                    .snap_to_window_with_margin(px(8.))
+                                    .child(popup.menu.clone()),
+                            ),
+                    ),
+                )
+                .with_priority(gpui_kit::base::POPUP_PRIORITY)
+            }))
     }
 }

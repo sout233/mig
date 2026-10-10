@@ -1,7 +1,14 @@
 use super::motion::MotionButton as Button;
 use super::*;
 use gpui_kit::assets::IconName as Glyph;
-use gpui_kit::component::menu::{ContextMenuExt, PopupMenu, PopupMenuItem};
+use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
+
+pub(super) struct QueuePopup {
+    pub(super) menu: Entity<PopupMenu>,
+    pub(super) position: Point<Pixels>,
+    previous_focus: Option<FocusHandle>,
+    _subscription: Subscription,
+}
 
 #[derive(Clone, Copy)]
 enum QueueAction {
@@ -75,26 +82,66 @@ impl MigApp {
         cx.notify();
     }
 
+    fn open_queue_menu(
+        &mut self,
+        path: PathBuf,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let previous_focus = match self.queue_popup.take() {
+            Some(popup) => popup.previous_focus,
+            None => window.focused(cx),
+        };
+        let entity = cx.entity().downgrade();
+        let menu = PopupMenu::build(window, cx, |menu, window, cx| {
+            let menu = match previous_focus.clone() {
+                Some(focus) => menu.action_context(focus),
+                None => menu,
+            };
+            self.queue_menu(path, entity, menu, window, cx)
+        });
+        let subscription =
+            cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, window, cx| {
+                let popup = this
+                    .queue_popup
+                    .take()
+                    .expect("dismiss the active queue menu");
+                if popup.menu.focus_handle(cx).is_focused(window) {
+                    match popup.previous_focus {
+                        Some(focus) => window.focus(&focus, cx),
+                        None => window.blur(cx),
+                    }
+                }
+                cx.notify();
+            });
+        self.queue_popup = Some(QueuePopup {
+            menu,
+            position,
+            previous_focus,
+            _subscription: subscription,
+        });
+        cx.notify();
+    }
+
     fn queue_menu(
+        &self,
         path: PathBuf,
         entity: WeakEntity<Self>,
         mut menu: PopupMenu,
+        window: &mut Window,
         cx: &mut Context<PopupMenu>,
     ) -> PopupMenu {
-        let (favorite, selected, opening) = entity
-            .read_with(cx, |this, _| {
-                (
-                    this.queue
-                        .iter()
-                        .find(|track| track.path == path)
-                        .is_some_and(|t| t.favorite),
-                    this.current
-                        .as_ref()
-                        .is_some_and(|track| track.path == path),
-                    this.opening,
-                )
-            })
-            .unwrap_or_default();
+        let favorite = self
+            .queue
+            .iter()
+            .find(|track| track.path == path)
+            .is_some_and(|track| track.favorite);
+        let selected = self
+            .current
+            .as_ref()
+            .is_some_and(|track| track.path == path);
+        let opening = self.opening;
 
         for (label, action, disabled) in [
             ("立即播放", QueueAction::Play, false),
@@ -115,10 +162,14 @@ impl MigApp {
             let path = path.clone();
             menu = menu.item(PopupMenuItem::new(label).disabled(disabled).on_click(
                 move |_, _, cx| {
-                    let _ = entity.update(cx, |this, cx| this.queue_action(&path, action, cx));
+                    entity
+                        .update(cx, |this, cx| this.queue_action(&path, action, cx))
+                        .expect("queue view dropped while its menu is open");
                 },
             ));
         }
+
+        menu.focus_handle(cx).focus(window, cx);
         menu
     }
 
@@ -171,21 +222,17 @@ impl MigApp {
 
         if queue {
             let entity = cx.entity();
-            let menu_entity = entity.downgrade();
-            let target = std::rc::Rc::new(std::cell::RefCell::new(None::<PathBuf>));
-            let menu_target = target.clone();
             panel = panel.child(
                 v_flex()
                     .id("queue-context-menu")
-                    .flex_1()
-                    .min_h_0()
-                    .context_menu(move |menu, _, cx| {
-                        let path = menu_target.borrow_mut().take();
-                        match path {
-                            Some(path) => Self::queue_menu(path, menu_entity.clone(), menu, cx),
-                            None => menu,
+                    .test_support()
+                    .capture_any_mouse_down(|event, window, _| {
+                        if event.button == MouseButton::Right {
+                            window.prevent_default();
                         }
                     })
+                    .flex_1()
+                    .min_h_0()
                     .child(
                         uniform_list("queue-list", self.queue.len(), move |range, _, cx| {
                             entity.update(cx, |this, cx| {
@@ -198,7 +245,6 @@ impl MigApp {
                                             .is_some_and(|current| current.path == track.path);
 
                                         let path = track.path.clone();
-                                        let target = target.clone();
                                         div()
                                             .id(SharedString::from(format!(
                                                 "queue-row-{}",
@@ -206,9 +252,10 @@ impl MigApp {
                                             )))
                                             .h_16()
                                             .px_3()
-                                            .on_mouse_down(MouseButton::Right, move |_, _, _| {
-                                                *target.borrow_mut() = Some(path.clone());
-                                            })
+                                            .on_mouse_down(MouseButton::Right, cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                                                this.open_queue_menu(path.clone(), event.position, window, cx);
+                                                cx.stop_propagation();
+                                            }))
                                             .child(
                                                 Button::new(SharedString::from(format!(
                                                     "queued-{}",

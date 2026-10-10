@@ -98,6 +98,7 @@ pub(crate) struct MigApp {
     lyrics_spacing: Entity<SliderState>,
     seeking: bool,
     panel: Option<bool>, // true: queue, false: lyrics
+    queue_popup: Option<panel::QueuePopup>,
     expanded_lyrics: bool,
     bottom_cover_bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     expanded_cover_bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
@@ -362,6 +363,7 @@ impl MigApp {
             lyrics_spacing,
             seeking: false,
             panel: None,
+            queue_popup: None,
             expanded_lyrics: false,
             bottom_cover_bounds: Default::default(),
             expanded_cover_bounds: Default::default(),

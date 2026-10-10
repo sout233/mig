@@ -13,8 +13,14 @@ use std::{
 pub(crate) fn run(handle: AnyWindowHandle, view: Entity<MigApp>, directory: PathBuf, cx: &mut App) {
     fs::create_dir_all(&directory).expect("create verification directory");
     cx.spawn(async move |cx| {
-        let result = verify(handle, &view, &directory, cx).await;
+        let queue_only = std::env::var_os("MIG_VERIFY_QUEUE_MENU").is_some();
+        let result = if queue_only {
+            verify_queue_menu(handle, &view, cx).await
+        } else {
+            verify(handle, &view, &directory, cx).await
+        };
         let report = match result {
+            Ok(()) if queue_only => "PASS: 20 queue menu open/close cycles and keyboard favorite.\n",
             Ok(()) => "PASS: native button input, audio playback, pause, seek, next/previous, favorites, search, queue, theme, minimum window, zoom, lyrics, missing-file recovery and online/source pages. Online playback checked when MIG_VERIFY_ONLINE is enabled.\n",
             Err(ref error) => error,
         };
@@ -658,6 +664,109 @@ async fn verify(
         screenshot(handle, &directory.join("14-online-playing.png"), cx)?;
         click(handle, "play", cx)?;
         wait_for(handle, view, cx, |view| !view.playing).await?;
+    }
+    Ok(())
+}
+
+async fn verify_queue_menu(
+    handle: AnyWindowHandle,
+    view: &Entity<MigApp>,
+    cx: &mut AsyncApp,
+) -> Result<(), String> {
+    wait_for(handle, view, cx, |view| !view.loading).await?;
+    handle
+        .update(cx, |_, _, cx| {
+            view.update(cx, |view, cx| {
+                view.page = Page::Local;
+                view.panel = Some(true);
+                view.queue = (0..10)
+                    .map(|ix| {
+                        crate::library::Track::from_path(PathBuf::from(format!(
+                            "queue-menu-test-{ix}.wav"
+                        )))
+                    })
+                    .collect();
+                view.library.tracks = view.queue.clone();
+                cx.notify();
+            });
+        })
+        .map_err(|error| error.to_string())?;
+    cx.background_executor()
+        .timer(Duration::from_millis(150))
+        .await;
+    for attempt in 0..20 {
+        handle
+            .update(cx, |_, window, cx| {
+                window.render_frame(cx);
+                let bounds = window.find("queue-context-menu").bounds();
+                let position = bounds.origin + point(px(30.), px(24. + (attempt % 3) as f32 * 64.));
+                window.simulate_mouse_move(position, cx);
+                window.dispatch_event(
+                    gpui_kit::PlatformInput::MouseDown(gpui_kit::MouseDownEvent {
+                        button: gpui_kit::MouseButton::Right,
+                        position,
+                        modifiers: Default::default(),
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+                window.dispatch_event(
+                    gpui_kit::PlatformInput::MouseUp(gpui_kit::MouseUpEvent {
+                        button: gpui_kit::MouseButton::Right,
+                        position,
+                        modifiers: Default::default(),
+                        click_count: 1,
+                    }),
+                    cx,
+                );
+            })
+            .map_err(|error| error.to_string())?;
+        cx.background_executor()
+            .timer(Duration::from_millis(80))
+            .await;
+        handle
+            .update(cx, |_, window, cx| {
+                window.render_frame(cx);
+                let bounds = window.find("popup-menu").bounds();
+                assert!(bounds.size.width > px(0.) && bounds.size.height > px(0.));
+                let keys: &[&str] = if attempt == 0 {
+                    &["down", "down", "down", "enter"]
+                } else {
+                    &["escape"]
+                };
+                for key in keys {
+                    let keystroke = gpui_kit::Keystroke::parse(key).expect("menu test key");
+                    window.dispatch_event(
+                        gpui_kit::PlatformInput::KeyDown(gpui_kit::KeyDownEvent {
+                            keystroke: keystroke.clone(),
+                            is_held: false,
+                            prefer_character_input: false,
+                        }),
+                        cx,
+                    );
+                    window.dispatch_event(
+                        gpui_kit::PlatformInput::KeyUp(gpui_kit::KeyUpEvent { keystroke }),
+                        cx,
+                    );
+                }
+            })
+            .map_err(|error| error.to_string())?;
+        cx.background_executor()
+            .timer(Duration::from_millis(80))
+            .await;
+        handle
+            .update(cx, |_, window, cx| {
+                window.render_frame(cx);
+                assert!(window.try_find("popup-menu").is_none());
+                assert!(
+                    view.read(cx).focus.contains_focused(window, cx),
+                    "focus must return to the live app, not stay on the dismissed menu"
+                );
+                assert_eq!(view.read(cx).queue.len(), 10);
+                assert!(view.read(cx).queue[0].favorite);
+            })
+            .map_err(|error| error.to_string())?;
     }
     Ok(())
 }

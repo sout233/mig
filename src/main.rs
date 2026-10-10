@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_assets;
 mod library;
@@ -57,4 +57,20 @@ fn main() {
             let _ = (handle, view);
             cx.activate(true);
         });
+}
+
+#[cfg(all(test, feature = "ui-verify"))]
+#[::core::prelude::v1::test]
+#[ignore = "opens a native window; set MIG_VERIFY_UI and isolated MIG_MUSIC_DATA_DIR"]
+fn native_queue_menu() {
+    assert!(std::env::var_os("MIG_VERIFY_QUEUE_MENU").is_some());
+    assert!(std::env::var_os("MIG_MUSIC_DATA_DIR").is_some());
+    let directory = std::env::var_os("MIG_VERIFY_UI").expect("set MIG_VERIFY_UI");
+    let directory = std::path::PathBuf::from(directory);
+    std::fs::create_dir_all(&directory).expect("queue verification directory");
+    let report_path = directory.join("result.txt");
+    std::fs::write(&report_path, "RUNNING\n").expect("reset queue verification report");
+    main();
+    let report = std::fs::read_to_string(report_path).expect("queue verification report");
+    assert!(report.starts_with("PASS:"), "{report}");
 }
