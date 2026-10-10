@@ -171,72 +171,95 @@ impl MigApp {
 
         if queue {
             let entity = cx.entity();
+            let menu_entity = entity.downgrade();
+            let target = std::rc::Rc::new(std::cell::RefCell::new(None::<PathBuf>));
+            let menu_target = target.clone();
             panel = panel.child(
-                uniform_list("queue-list", self.queue.len(), move |range, _, cx| {
-                    entity.update(cx, |this, cx| {
-                        range
-                            .map(|ix| {
-                                let track = &this.queue[ix];
-                                let selected = this
-                                    .current
-                                    .as_ref()
-                                    .is_some_and(|current| current.path == track.path);
-
-                                let path = track.path.clone();
-                                let menu_entity = cx.entity().downgrade();
-                                div()
-                                    .id(SharedString::from(format!("queue-row-{}", track.id())))
-                                    .h_16()
-                                    .px_3()
-                                    .context_menu(move |menu, _, cx| {
-                                        Self::queue_menu(
-                                            path.clone(),
-                                            menu_entity.clone(),
-                                            menu,
-                                            cx,
-                                        )
-                                    })
-                                    .child(
-                                        Button::new(SharedString::from(format!(
-                                            "queued-{}",
-                                            track.id()
-                                        )))
-                                        .ghost()
-                                        .selected(selected)
-                                        .w_full()
-                                        .h(rems(3.5))
-                                        .justify_start()
-                                        .accessibility_label(format!("播放 {}", track.title))
-                                        .child(
-                                            v_flex()
-                                                .w_full()
-                                                .min_w_0()
-                                                .gap_1()
-                                                .child(div().truncate().child(track.title.clone()))
-                                                .child(
-                                                    div()
-                                                        .text_xs()
-                                                        .text_color(cx.theme().muted_foreground)
-                                                        .truncate()
-                                                        .child(track.artist.clone()),
-                                                ),
-                                        )
-                                        .on_click(
-                                            cx.listener(move |this, _, _, cx| {
-                                                this.player
-                                                    .send(Command::Play(this.queue.clone(), ix));
-                                                this.opening = true;
-                                                cx.notify();
-                                            }),
-                                        ),
-                                    )
-                            })
-                            .collect::<Vec<_>>()
+                v_flex()
+                    .id("queue-context-menu")
+                    .flex_1()
+                    .min_h_0()
+                    .context_menu(move |menu, _, cx| {
+                        let path = menu_target.borrow_mut().take();
+                        match path {
+                            Some(path) => Self::queue_menu(path, menu_entity.clone(), menu, cx),
+                            None => menu,
+                        }
                     })
-                })
-                .smooth_scroll("queue-wheel")
-                .flex_1()
-                .min_h_0(),
+                    .child(
+                        uniform_list("queue-list", self.queue.len(), move |range, _, cx| {
+                            entity.update(cx, |this, cx| {
+                                range
+                                    .map(|ix| {
+                                        let track = &this.queue[ix];
+                                        let selected = this
+                                            .current
+                                            .as_ref()
+                                            .is_some_and(|current| current.path == track.path);
+
+                                        let path = track.path.clone();
+                                        let target = target.clone();
+                                        div()
+                                            .id(SharedString::from(format!(
+                                                "queue-row-{}",
+                                                track.id()
+                                            )))
+                                            .h_16()
+                                            .px_3()
+                                            .on_mouse_down(MouseButton::Right, move |_, _, _| {
+                                                *target.borrow_mut() = Some(path.clone());
+                                            })
+                                            .child(
+                                                Button::new(SharedString::from(format!(
+                                                    "queued-{}",
+                                                    track.id()
+                                                )))
+                                                .ghost()
+                                                .selected(selected)
+                                                .w_full()
+                                                .h(rems(3.5))
+                                                .justify_start()
+                                                .accessibility_label(format!(
+                                                    "播放 {}",
+                                                    track.title
+                                                ))
+                                                .child(
+                                                    v_flex()
+                                                        .w_full()
+                                                        .min_w_0()
+                                                        .gap_1()
+                                                        .child(
+                                                            div()
+                                                                .truncate()
+                                                                .child(track.title.clone()),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .text_xs()
+                                                                .text_color(
+                                                                    cx.theme().muted_foreground,
+                                                                )
+                                                                .truncate()
+                                                                .child(track.artist.clone()),
+                                                        ),
+                                                )
+                                                .on_click(cx.listener(move |this, _, _, cx| {
+                                                    this.player.send(Command::Play(
+                                                        this.queue.clone(),
+                                                        ix,
+                                                    ));
+                                                    this.opening = true;
+                                                    cx.notify();
+                                                })),
+                                            )
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                        })
+                        .smooth_scroll("queue-wheel")
+                        .flex_1()
+                        .min_h_0(),
+                    ),
             );
             if self.queue.is_empty() {
                 panel = panel.child(
@@ -244,7 +267,7 @@ impl MigApp {
                         .p_4()
                         .text_xs()
                         .text_color(cx.theme().muted_foreground)
-                        .child("选择歌曲播放后，队列会出现在这里。"),
+                        .child("啥也没有。。。"),
                 );
             }
         } else {
@@ -257,7 +280,7 @@ impl MigApp {
                             self.current
                                 .as_ref()
                                 .map(|track| track.title.clone())
-                                .unwrap_or("等待第一首音乐".into()),
+                                .unwrap_or("waiting4love".into()),
                         ),
                     )
                     .child(
