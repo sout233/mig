@@ -314,6 +314,7 @@ impl MigApp {
                             .collect::<Vec<_>>()
                     })
                 })
+                .smooth_scroll("playlists-wheel")
                 .flex_1()
                 .min_h_0()
                 .mx_6()
@@ -365,6 +366,7 @@ impl MigApp {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .smooth_scroll("sources-wheel")
                     .gap_2()
                     .children(
                         crate::online::SOURCES

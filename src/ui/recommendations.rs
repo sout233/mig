@@ -1,7 +1,6 @@
 use super::motion::MotionButton as Button;
 use super::*;
 use gpui_kit::assets::IconName as Glyph;
-use gpui_kit::component::scroll::ScrollableElement;
 
 impl MigApp {
     pub(super) fn load_recommendations(&mut self, cx: &mut Context<Self>) {
@@ -189,13 +188,14 @@ impl MigApp {
         id: &'static str,
         tracks: &[Track],
         cx: &mut Context<Self>,
-    ) -> Stateful<Div> {
+    ) -> impl IntoElement {
         h_flex()
             .id(id)
             .w_full()
             .min_w_0()
             .gap_3()
             .overflow_x_scroll()
+            .smooth_scroll(id)
             .items_start()
             .children(tracks.iter().enumerate().map(|(index, track)| {
                 let queue = tracks.to_vec();
@@ -343,6 +343,7 @@ impl MigApp {
                                     .gap_3()
                                     .items_start()
                                     .overflow_x_scroll()
+                                    .smooth_scroll("personal-recommendations-wheel")
                                     .children(data.playlists.iter().skip(2).map(|item| {
                                         self.recommended_playlist_card(item, false, cx)
                                     })),
@@ -381,10 +382,10 @@ impl MigApp {
                     .child(self.home_track_row("home-recent", &recent, cx)),
             );
         }
-        div()
-            .flex_1()
-            .min_w_0()
-            .min_h_0()
-            .child(body.overflow_y_scrollbar().id("recommendations-scroll"))
+        div().flex_1().min_w_0().min_h_0().child(
+            body.id("recommendations-scroll")
+                .overflow_y_scroll()
+                .smooth_scrollbar("recommendations-wheel"),
+        )
     }
 }

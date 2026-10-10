@@ -1,12 +1,36 @@
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::{
-    ContentMask, FontWeight, IntoElement, Pixels, Point, SharedString, Styled, TextAlign, canvas,
-    point, px,
+    ContentMask, FontWeight, Hsla, IntoElement, Pixels, Point, SharedString, Styled, TextAlign,
+    TextStyle, WrappedLine, canvas, point, px,
 };
+
+use std::rc::Rc;
+
+#[derive(PartialEq)]
+struct LayoutKey {
+    original: SharedString,
+    translation: Option<SharedString>,
+    width: Pixels,
+    rem: Pixels,
+    scale: f32,
+    style: TextStyle,
+    foreground: Hsla,
+    muted_foreground: Hsla,
+    passes: usize,
+}
+
+type TextLayout = Vec<(WrappedLine, Pixels, Pixels)>;
+
+#[derive(Default)]
+struct LayoutCache {
+    key: Option<LayoutKey>,
+    lines: Rc<TextLayout>,
+}
 
 /// Draw the current line once to keep it sharp
 /// Nearby inactive lines get extra offset copies for the soft blur
 pub(super) fn lyric_text(
+    id: SharedString,
     original: SharedString,
     translation: Option<SharedString>,
     blur: f32,
@@ -21,8 +45,25 @@ pub(super) fn lyric_text(
             };
 
             let offsets = blur_offsets(radius);
-            let mut layout = Vec::new();
             let mut style = window.text_style();
+            let key = LayoutKey {
+                original: original.clone(),
+                translation: translation.clone(),
+                width: bounds.size.width,
+                rem: window.rem_size(),
+                scale,
+                style: style.clone(),
+                foreground: cx.theme().foreground,
+                muted_foreground: cx.theme().muted_foreground,
+                passes: offsets.len(),
+            };
+            let cache = window.use_keyed_state(id.clone(), cx, |_, _| LayoutCache::default());
+            if cache.read(cx).key.as_ref() == Some(&key) {
+                return (cache.read(cx).lines.clone(), offsets);
+            }
+
+            // Scrolling only changes the origin; reuse the shaped text until its inputs change
+            let mut layout = Vec::new();
             style.font_weight = FontWeight::BOLD;
             style.color = cx.theme().foreground.opacity(1. / offsets.len() as f32);
             let font_size = window.rem_size() * (2. * scale);
@@ -32,7 +73,7 @@ pub(super) fn lyric_text(
                 font_size,
                 &[run],
                 Some(bounds.size.width),
-                Some(2),
+                None,
             ) {
                 for line in lines {
                     layout.push((line, font_size * 1.2, px(0.)));
@@ -51,7 +92,7 @@ pub(super) fn lyric_text(
                     font_size,
                     &[run],
                     Some(bounds.size.width),
-                    Some(2),
+                    None,
                 ) {
                     for (ix, line) in lines.into_iter().enumerate() {
                         layout.push((
@@ -66,6 +107,11 @@ pub(super) fn lyric_text(
                     }
                 }
             }
+            let layout = Rc::new(layout);
+            cache.update(cx, |cache, _| {
+                cache.key = Some(key);
+                cache.lines = layout.clone();
+            });
             (layout, offsets)
         },
         move |bounds, (layout, offsets), window, cx| {
@@ -78,19 +124,19 @@ pub(super) fn lyric_text(
                 bounds.origin + point(px(0.), (bounds.size.height - height).max(px(0.)) * 0.5);
 
             window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                for (line, line_height, gap) in layout {
-                    origin.y += gap;
+                for (line, line_height, gap) in layout.iter() {
+                    origin.y += *gap;
                     for offset in &offsets {
                         let _ = line.paint(
                             origin + *offset,
-                            line_height,
+                            *line_height,
                             TextAlign::Left,
                             Some(bounds),
                             window,
                             cx,
                         );
                     }
-                    origin.y += line.size(line_height).height;
+                    origin.y += line.size(*line_height).height;
                 }
             });
         },
@@ -98,20 +144,21 @@ pub(super) fn lyric_text(
     .size_full()
 }
 
+// Three mirrored pairs keep the blur centered without drawing thirteen copies
+const BLUR_SAMPLES: [(f32, f32); 3] = [
+    (1.893_018_5, 0.),
+    (-0.868_185_3, 0.795_329_2),
+    (0.052_792_35, -0.601_544_74),
+];
+
 fn blur_offsets(radius: Pixels) -> Vec<Point<Pixels>> {
     if radius < px(0.2) {
         return vec![point(px(0.), px(0.))];
     }
-    let mut offsets = Vec::with_capacity(13);
+    let mut offsets = Vec::with_capacity(7);
     offsets.push(point(px(0.), px(0.)));
-    for ix in 0..6 {
-        let distance = (-2. * ((ix as f32 + 0.5) / 6.).ln()).sqrt();
-        let angle = ix as f32 * 2.399963;
-        let offset = point(
-            radius * (distance * angle.cos()),
-            radius * (distance * angle.sin()),
-        );
-
+    for (x, y) in BLUR_SAMPLES {
+        let offset = point(radius * x, radius * y);
         offsets.push(offset);
         offsets.push(-offset);
     }
@@ -133,6 +180,10 @@ mod tests {
         assert_eq!(blur_offsets(px(0.)), vec![point(px(0.), px(0.))]);
         for radius in [0.5, 1.5, 3.5] {
             let offsets = blur_offsets(px(radius));
+            assert!(
+                offsets.len() <= 7,
+                "Keep the per-line blur draw budget bounded"
+            );
             let sum = offsets
                 .iter()
                 .fold(point(px(0.), px(0.)), |sum, offset| sum + *offset);

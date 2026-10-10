@@ -44,6 +44,8 @@ impl MigApp {
             closing: false,
             from,
         });
+        let opacity = self.bottom_cover_opacity();
+        self.bottom_cover_fade = Some((opacity, 0., std::time::Instant::now()));
         self.expanded_lyrics = true;
         self.lyrics_follow = true;
         self.lyrics_needs_scroll = true;
@@ -62,6 +64,8 @@ impl MigApp {
             .or(self.expanded_cover_bounds.get());
 
         let from = std::array::from_fn(|ix| self.expanded_part_visibility(ix));
+        let opacity = self.bottom_cover_opacity();
+        self.bottom_cover_fade = Some((opacity, 1., std::time::Instant::now()));
         if cx.reduce_motion() {
             self.expanded_lyrics = false;
             self.cover_morph = None;
@@ -311,27 +315,52 @@ impl MigApp {
                     .child("暂无歌词"),
             );
         } else {
-            let entity = cx.entity();
+            let handle = self.lyrics_scroll.0.borrow().base_handle.clone();
+            let edge = window.rem_size() * self.lyrics_row_height() * padding as f32;
+            let viewport = if handle.bounds().size.height > px(0.) {
+                handle.bounds().size.height
+            } else {
+                window.bounds().size.height
+            };
+            let range = self
+                .lyrics_geometry
+                .visible(-handle.offset().y - edge, viewport);
+            let top = edge + self.lyrics_geometry.top(range.start);
+            let bottom = edge + self.lyrics_geometry.total() - self.lyrics_geometry.top(range.end);
+            let expected_width = self.lyrics_geometry.width();
+            let inset = window.rem_size() * 1.5 + px(2.);
+            let rows = range
+                .map(|ix| self.expanded_lyric_row(ix, window, cx))
+                .collect::<Vec<_>>();
+
             right = right.child(
-                uniform_list(
-                    "expanded-lyric-lines",
-                    self.lyrics.len() + padding * 2,
-                    move |range, window, cx| {
-                        entity.update(cx, |this, cx| {
-                            range
-                                .map(|ix| this.expanded_lyric_row(ix, padding, window, cx))
-                                .collect::<Vec<_>>()
-                        })
-                    },
-                )
-                .track_scroll(&self.lyrics_scroll)
-                .flex_1()
-                .min_h_0()
-                .on_scroll_wheel(cx.listener(|this, _, _, cx| {
-                    this.lyrics_follow = false;
-                    this.lyrics_scroll_motion = None;
-                    cx.notify();
-                })),
+                v_flex()
+                    .id("expanded-lyric-lines")
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .child(div().h(top).flex_shrink_0())
+                    .children(rows)
+                    .child(div().h(bottom).flex_shrink_0())
+                    .child(
+                        canvas(
+                            move |bounds, window, _| {
+                                if (bounds.size.width - inset - expected_width).abs() > px(0.5) {
+                                    window.request_animation_frame();
+                                }
+                            },
+                            |_, _, _, _| {},
+                        )
+                        .absolute()
+                        .size_full(),
+                    )
+                    .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+                        this.lyrics_follow = false;
+                        this.lyrics_scroll_motion = None;
+                        cx.notify();
+                    }))
+                    .smooth_scroll_with("lyrics-wheel", &self.lyrics_scroll),
             );
             right = right.child(
                 h_flex().h_10().justify_end().children(
@@ -499,15 +528,10 @@ impl MigApp {
 
     fn expanded_lyric_row(
         &self,
-        ix: usize,
-        padding: usize,
+        line_ix: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let Some(line_ix) = ix.checked_sub(padding).filter(|ix| *ix < self.lyrics.len()) else {
-            return div().h(rems(self.lyrics_row_height())).into_any_element();
-        };
-
         let line = &self.lyrics[line_ix];
         let seconds = line.seconds;
         let active = self.lyrics_active == Some(line_ix);
@@ -576,7 +600,8 @@ impl MigApp {
         Button::new(SharedString::from(format!("expanded-line-{line_ix}")))
             .ghost()
             .w_full()
-            .h(rems(self.lyrics_row_height()))
+            .h(self.lyrics_geometry.height(line_ix))
+            .flex_shrink_0()
             .px_3()
             .justify_start()
             .disabled(!seconds.is_finite())
@@ -596,6 +621,7 @@ impl MigApp {
                     .top(rems(shift))
                     .opacity(emphasis)
                     .child(super::lyrics_visual::lyric_text(
+                        SharedString::from(format!("lyric-layout-{line_ix}")),
                         original,
                         translation,
                         blur,
@@ -624,7 +650,33 @@ impl MigApp {
     }
 
     pub(super) fn sync_expanded_lyrics(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.expanded_lyrics || self.lyrics.is_empty() || !self.lyrics[0].seconds.is_finite() {
+        if !self.expanded_lyrics || self.lyrics.is_empty() {
+            return;
+        }
+
+        let handle = self.lyrics_scroll.0.borrow().base_handle.clone();
+        let compact = window.bounds().size.width < window.rem_size() * 70.;
+        let cover = (window.bounds().size.height - window.rem_size() * 21.)
+            .min(window.bounds().size.width * 0.36)
+            .clamp(window.rem_size() * 10., window.rem_size() * 26.);
+        let fallback = window.bounds().size.width.min(window.rem_size() * 96.)
+            - cover
+            - window.rem_size() * if compact { 7. } else { 14. };
+        let width = if handle.bounds().size.width > px(0.) {
+            handle.bounds().size.width
+        } else {
+            fallback
+        };
+        let width = (width - window.rem_size() * 1.5 - px(2.)).max(px(1.));
+        if self.lyrics_geometry.update(
+            &self.lyrics,
+            width,
+            self.library.lyrics_spacing_percent(),
+            window,
+        ) {
+            self.lyrics_needs_scroll = true;
+        }
+        if !self.lyrics[0].seconds.is_finite() {
             return;
         }
 
@@ -635,14 +687,18 @@ impl MigApp {
 
         let changed = active != self.lyrics_active;
         self.lyrics_active = active;
-        let handle = self.lyrics_scroll.0.borrow().base_handle.clone();
         let viewport = handle.bounds().size.height;
+        if viewport <= px(0.) {
+            window.request_animation_frame();
+            return;
+        }
+
         let layout = (viewport, window.rem_size());
         let resized = self.lyrics_layout != Some(layout);
         self.lyrics_layout = Some(layout);
         if !self.lyrics_follow {
             if changed {
-                cx.notify();
+                window.request_animation_frame();
             }
             return;
         }
@@ -650,11 +706,14 @@ impl MigApp {
             self.lyrics_needs_scroll = false;
             let padding = self.lyrics_padding(window);
             let row_height = window.rem_size() * self.lyrics_row_height();
-            let total_height = row_height * (self.lyrics.len() + padding * 2) as f32;
+            let edge = row_height * padding as f32;
+            let total_height = self.lyrics_geometry.total() + edge * 2.;
             let minimum = -(total_height - viewport).max(px(0.));
+            let index = active.unwrap_or(0);
             let target = (viewport * 0.5
-                - row_height * (active.unwrap_or(0) + padding) as f32
-                - row_height * 0.5)
+                - edge
+                - self.lyrics_geometry.top(index)
+                - self.lyrics_geometry.height(index) * 0.5)
                 .clamp(minimum, px(0.));
 
             if cx.reduce_motion() {
@@ -664,7 +723,7 @@ impl MigApp {
                 self.lyrics_scroll_motion =
                     Some((handle.offset().y, target, std::time::Instant::now()));
             }
-            cx.notify();
+            window.request_animation_frame();
         }
         if let Some((from, to, started)) = self.lyrics_scroll_motion {
             let progress = (started.elapsed().as_secs_f32() / 0.6).min(1.);
@@ -673,14 +732,23 @@ impl MigApp {
             if progress >= 1. {
                 self.lyrics_scroll_motion = None;
             }
-            cx.notify();
+            window.request_animation_frame();
         } else if changed {
-            cx.notify();
+            window.request_animation_frame();
         }
     }
 }
 
 impl MigApp {
+    pub(super) fn bottom_cover_opacity(&self) -> f32 {
+        let Some((from, to, started)) = self.bottom_cover_fade else {
+            return 1.;
+        };
+        let duration = if to < from { 0.2 } else { 1.5 };
+        let progress = (started.elapsed().as_secs_f32() / duration).min(1.);
+        from + (to - from) * progress
+    }
+
     pub(super) fn cover_morph_active(&self) -> bool {
         self.cover_morph
             .as_ref()

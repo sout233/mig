@@ -2,6 +2,7 @@ mod content;
 mod cover;
 mod expanded;
 mod local;
+mod lyrics_geometry;
 mod lyrics_visual;
 mod motion;
 mod navigation;
@@ -11,6 +12,7 @@ mod playlists;
 mod progress;
 mod recommendations;
 mod shell;
+mod smooth_scroll;
 mod tips;
 mod title;
 #[cfg(feature = "ui-verify")]
@@ -28,6 +30,7 @@ use gpui_kit::component::{
     *,
 };
 use gpui_kit::*;
+use smooth_scroll::ScrollTarget as _;
 use std::{path::PathBuf, time::Duration};
 
 actions!(
@@ -106,6 +109,8 @@ pub(crate) struct MigApp {
     lyrics_follow: bool,
     lyrics_needs_scroll: bool,
     lyrics_layout: Option<(Pixels, Pixels)>,
+    lyrics_geometry: lyrics_geometry::LyricsGeometry,
+    bottom_cover_fade: Option<(f32, f32, std::time::Instant)>,
     lyrics_scroll_motion: Option<(Pixels, Pixels, std::time::Instant)>,
     loading: bool,
     importing: bool,
@@ -248,9 +253,7 @@ impl MigApp {
         let timer = cx.spawn_in(window, async move |this, cx| {
             loop {
                 let animating = this
-                    .read_with(cx, |this, _| {
-                        this.lyrics_scroll_motion.is_some() || this.cover_morph_active()
-                    })
+                    .read_with(cx, |this, _| this.cover_morph_active())
                     .unwrap_or(false);
 
                 cx.background_executor()
@@ -259,7 +262,6 @@ impl MigApp {
                 if this
                     .update_in(cx, |this, window, cx| {
                         this.receive_events(window, cx);
-                        this.sync_expanded_lyrics(window, cx);
                         if this.cover_morph.is_some() {
                             if !this.cover_morph_active() {
                                 if this
@@ -371,6 +373,8 @@ impl MigApp {
             lyrics_follow: true,
             lyrics_needs_scroll: true,
             lyrics_layout: None,
+            lyrics_geometry: lyrics_geometry::LyricsGeometry::default(),
+            bottom_cover_fade: None,
             lyrics_scroll_motion: None,
             loading: true,
             importing: false,
@@ -558,6 +562,7 @@ impl MigApp {
                     self.position = 0.;
                     self.lyrics_bilingual = lyrics.iter().any(|line| line.translation.is_some());
                     self.lyrics = lyrics;
+                    self.lyrics_geometry = lyrics_geometry::LyricsGeometry::default();
                     self.lyrics_active = None;
                     if self
                         .lyrics
@@ -585,6 +590,7 @@ impl MigApp {
                     self.position = 0.;
                     self.duration = 0.;
                     self.lyrics.clear();
+                    self.lyrics_geometry = lyrics_geometry::LyricsGeometry::default();
                     self.lyrics_active = None;
                     self.lyrics_scroll_motion = None;
                     self.expanded_lyrics = false;

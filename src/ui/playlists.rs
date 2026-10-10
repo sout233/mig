@@ -133,6 +133,7 @@ impl MigApp {
                     .min_h_0()
                     .gap_2()
                     .overflow_y_scroll()
+                    .smooth_scroll("favorite-playlists-wheel")
                     .children(self.library.playlists.iter().map(|saved| {
                         let id = saved.info.id;
                         let fallback = || Icon::new(Glyph::ListMusic).small().into_any_element();

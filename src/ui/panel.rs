@@ -234,6 +234,7 @@ impl MigApp {
                             .collect::<Vec<_>>()
                     })
                 })
+                .smooth_scroll("queue-wheel")
                 .flex_1()
                 .min_h_0(),
             );
@@ -306,6 +307,7 @@ impl MigApp {
                         .flex_1()
                         .min_h_0()
                         .overflow_y_scroll()
+                        .smooth_scroll("panel-lyrics-wheel")
                         .p_6()
                         .gap_6()
                         .children(

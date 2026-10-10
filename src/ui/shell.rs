@@ -130,7 +130,7 @@ impl MigApp {
             .on_click(cx.listener(move |this, _, window, cx| this.navigate(page, window, cx)))
     }
 
-    fn sidebar(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .id("sidebar")
             .w_full()
@@ -139,6 +139,7 @@ impl MigApp {
             .p_4()
             .gap_4()
             .overflow_y_scroll()
+            .smooth_scroll("sidebar-wheel")
             .bg(cx.theme().transparent)
             .border_r_1()
             .border_color(cx.theme().border)
@@ -244,12 +245,20 @@ impl MigApp {
             .child(div().flex_1())
     }
 
-    fn player_bar(&self, background: Hsla, cx: &mut Context<Self>) -> Div {
+    fn player_bar(&self, background: Hsla, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let track = self.current.as_ref();
         let path = track.map(|track| track.path.clone());
         let playing = self.playing;
         let volume = self.volume.clone();
         let cover_bounds = self.bottom_cover_bounds.clone();
+        let cover_opacity = if cx.reduce_motion() {
+            if self.expanded_lyrics { 0. } else { 1. }
+        } else {
+            self.bottom_cover_opacity()
+        };
+        if !cx.reduce_motion() && cover_opacity > 0. && cover_opacity < 1. {
+            window.request_animation_frame();
+        }
         h_flex()
             .flex_shrink_0()
             .h(rems(5.5))
@@ -265,19 +274,20 @@ impl MigApp {
                     .w(rems(15.))
                     .min_w_0()
                     .child(
-                        Button::new("open-lyrics-cover")
-                            .ghost()
-                            .cover_overlay()
-                            .on_prepaint(move |bounds, _, _| cover_bounds.set(Some(bounds)))
-                            .p_0()
-                            .size(rems(3.875))
-                            .disabled(track.is_none())
-                            .accessibility_label("展开歌词")
-                            .opacity(if self.cover_morph.is_some() { 0. } else { 1. })
-                            .child(self.album_cover(track, true, cx))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.open_expanded_lyrics(window, cx)
-                            })),
+                        div().flex_shrink_0().opacity(cover_opacity).child(
+                            Button::new("open-lyrics-cover")
+                                .ghost()
+                                .cover_overlay()
+                                .on_prepaint(move |bounds, _, _| cover_bounds.set(Some(bounds)))
+                                .p_0()
+                                .size(rems(3.875))
+                                .disabled(track.is_none())
+                                .accessibility_label("展开歌词")
+                                .child(self.album_cover(track, true, cx))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.open_expanded_lyrics(window, cx)
+                                })),
+                        ),
                     )
                     .child(
                         v_flex()
@@ -513,6 +523,7 @@ impl MigApp {
 
 impl Render for MigApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.sync_expanded_lyrics(window, cx);
         let background = crate::theme::background(window, cx);
         let search = self.search.clone();
         let search_visible = self.page != Page::Settings && !self.expanded_lyrics;
@@ -575,7 +586,7 @@ impl Render for MigApp {
                             .min_h_0()
                             .opacity(1. - self.expanded_part_visibility(0))
                             .child(self.render_workspace(compact, window, cx))
-                            .child(self.player_bar(background.surface, cx)),
+                            .child(self.player_bar(background.surface, window, cx)),
                     );
                 }
                 if self.expanded_lyrics {
@@ -603,6 +614,7 @@ impl Render for MigApp {
                             .min_w_0()
                             .max_h(rems(6.))
                             .overflow_y_scroll()
+                            .smooth_scroll("error-detail-wheel")
                             .child(error),
                     )
                     .child(

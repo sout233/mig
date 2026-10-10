@@ -2,7 +2,6 @@ use super::motion::MotionButton as Button;
 use super::*;
 use crate::library::time_label;
 use gpui_kit::assets::IconName as Glyph;
-use gpui_kit::component::scroll::ScrollableElement;
 
 impl MigApp {
     pub(super) fn render_content(&self, compact: bool, cx: &mut Context<Self>) -> Div {
@@ -120,7 +119,7 @@ impl MigApp {
                             .collect::<Vec<_>>()
                     })
                 })
-                .track_scroll(&self.scroll)
+                .smooth_scroll_with("tracks-wheel", &self.scroll)
                 .flex_1()
                 .min_h_0()
                 .mx_6()
@@ -373,7 +372,7 @@ impl MigApp {
                             div()
                                 .text_xs()
                                 .text_color(cx.theme().muted_foreground)
-                                .child("调整全屏歌词的行间距离，原文和译文一起移动。"),
+                                .child("调整全屏歌词的行间距离"),
                         ),
                     )
                     .child(
@@ -455,10 +454,11 @@ impl MigApp {
                     ),
             );
 
-        div()
-            .flex_1()
-            .min_w_0()
-            .min_h_0()
-            .child(content.overflow_y_scrollbar().id("settings-scroll"))
+        div().flex_1().min_w_0().min_h_0().child(
+            content
+                .id("settings-scroll")
+                .overflow_y_scroll()
+                .smooth_scrollbar("settings-wheel"),
+        )
     }
 }
