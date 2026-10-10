@@ -270,6 +270,7 @@ impl Element for SmoothArea {
                 started: Instant::now(),
             });
             // Input events run outside the paint stack; notify the view captured above
+            //review: ok
             cx.notify(view);
             cx.stop_propagation();
         });

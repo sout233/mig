@@ -29,6 +29,7 @@ struct LayoutCache {
 
 /// Draw the current line once to keep it sharp
 /// Nearby inactive lines get extra offset copies for the soft blur
+/// TODO: 这东西的模糊效果有点拉
 pub(super) fn lyric_text(
     id: SharedString,
     original: SharedString,

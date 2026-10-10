@@ -107,6 +107,7 @@ impl Source {
             ctx.eval::<(), _>(raw).map_err(|e| exception(&ctx, e))
         });
         // Keep the jobs even if setup fails, so cleanup can still cancel and join them
+        // anyway, maybe we should to complete the error handler 4 鲁棒性
         let mut source = Self {
             sources: Value::Null,
             context,

@@ -20,6 +20,7 @@ impl ExpandedTransition {
 }
 
 // Start fast, then take our time settling into place
+// maybe i called gpt to finish quart easing but it didn't
 fn expand_ease(t: f32) -> f32 {
     let t = t.clamp(0., 1.);
     (1. - (-8. * t).exp()) / (1. - (-8.0f32).exp())

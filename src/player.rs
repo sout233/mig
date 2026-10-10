@@ -279,7 +279,6 @@ impl Worker {
             self.ix = 0;
             let _ = self.events.send(Event::Stopped);
         } else if let Some(ix) = retained {
-            // Keep playing where we were; a queue edit should not restart the song
             self.ix = ix;
         } else {
             self.ix = next;

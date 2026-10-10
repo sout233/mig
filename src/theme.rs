@@ -61,6 +61,8 @@ pub(crate) fn apply_cover(dark: bool, cover_color: Option<u32>, cx: &mut App) {
             let tint = if saturation == 0. { 0. } else { 1. };
             let mut primary = hsla(color.h, saturation, if dark { 0.70 } else { 0.38 }, 1.);
             // Yellow can get hard to read in light mode, so darken it if needed
+            //
+            // wait...is that ok for okhcl? gpt?
             while !dark && white_contrast(primary) < 4.5 && primary.l > 0.16 {
                 primary.l -= 0.02;
             }

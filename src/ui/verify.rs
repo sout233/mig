@@ -93,7 +93,6 @@ async fn hover_screenshot(
 }
 
 fn local_audio_fixtures(directory: &Path) -> Result<Vec<PathBuf>, String> {
-    // These audio fixtures are just for the checks; the app does not ship demo songs
     let rate = 8000u32;
     let bytes = rate * 32 * 2;
     let mut wave = Vec::with_capacity(bytes as usize + 44);

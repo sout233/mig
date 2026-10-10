@@ -13,7 +13,7 @@ struct Interaction {
     pulse_until: Option<Instant>,
 }
 
-/// Let the native button handle clicks and layout; we just add the motion
+/// just let the native button handle clicks and layout
 #[derive(IntoElement)]
 pub(super) struct MotionButton {
     inner: NativeButton,
@@ -309,6 +309,7 @@ impl RenderOnce for MotionButton {
 }
 
 /// The input still handles focus and typing; only its background fades
+/// review: passed but idk how it work
 #[derive(IntoElement)]
 pub(super) struct MotionField<E: IntoElement + Styled + 'static> {
     inner: E,
@@ -360,7 +361,7 @@ impl<E: IntoElement + Styled + 'static> RenderOnce for MotionField<E> {
     }
 }
 
-/// Put the hover background on the whole row, and leave focus to the play button
+/// aim what: put the hover background on the whole row
 #[derive(IntoElement)]
 pub(super) struct MotionRow {
     inner: Stateful<Div>,

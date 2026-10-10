@@ -1,6 +1,6 @@
 'use strict';
 (function() {
-  // Networking, encoding and crypto come from the Rust host; no Node needed
+  // just call from rust
   function host(operation, value) {
     const result = JSON.parse(__native(operation, JSON.stringify(value)));
     if (!result.ok) throw new Error(result.error);
