@@ -237,11 +237,42 @@ impl MigApp {
     }
 
     pub(super) fn local_collection_links(&self, cx: &mut Context<Self>) -> Vec<Button> {
+        let covers: std::collections::HashMap<_, _> = self
+            .library
+            .tracks
+            .iter()
+            .filter_map(|track| track.cover.as_ref().map(|cover| (&track.path, cover)))
+            .collect();
         self.library
             .collections
             .iter()
             .map(|item| {
                 let id = item.id;
+                let path = item.tracks.iter().find_map(|path| covers.get(path).copied());
+                let placeholder = || {
+                    h_flex()
+                        .size_full()
+                        .justify_center()
+                        .child(Icon::new(Glyph::ListMusic).small())
+                        .into_any_element()
+                };
+                let cover = div()
+                    .size_8()
+                    .flex_shrink_0()
+                    .rounded(cx.theme().radius)
+                    .overflow_hidden()
+                    .bg(cx.theme().muted)
+                    .child(if let Some(path) = path {
+                        img(path.clone())
+                            .size_full()
+                            .rounded(cx.theme().radius)
+                            .object_fit(ObjectFit::Cover)
+                            .with_loading(placeholder)
+                            .with_fallback(placeholder)
+                            .into_any_element()
+                    } else {
+                        placeholder()
+                    });
                 Button::new(SharedString::from(format!("local-collection-{id}")))
                     .ghost()
                     .w_full()
@@ -249,9 +280,13 @@ impl MigApp {
                     .flex_shrink_0()
                     .justify_start()
                     .selected(self.page == Page::Collection(id))
-                    .icon(Glyph::Folder)
-                    .child(div().flex_1().min_w_0().truncate().child(item.name.clone()))
+                    .child(
+                        h_flex().w_full().min_w_0().gap_3().child(cover).child(
+                            div().flex_1().min_w_0().truncate().child(item.name.clone()),
+                        ),
+                    )
                     .tooltip(item.name.clone())
+                    .accessibility_label(format!("打开本地收藏夹 {}", item.name))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.navigate(Page::Collection(id), window, cx)
                     }))
