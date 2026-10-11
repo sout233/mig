@@ -78,9 +78,14 @@ pub(crate) struct Library {
     pub(crate) sidebar_width: Option<f32>,
     pub(crate) panel_width: Option<f32>,
     pub(crate) lyrics_spacing: Option<f32>,
+    pub(crate) advanced_blur: Option<bool>,
 }
 
 impl Library {
+    pub(crate) fn advanced_blur_enabled(&self) -> bool {
+        cfg!(target_os = "windows") && self.advanced_blur.unwrap_or(true)
+    }
+
     pub(crate) fn lyrics_spacing_percent(&self) -> f32 {
         self.lyrics_spacing
             .filter(|value| value.is_finite())
@@ -333,6 +338,20 @@ pub(crate) fn time_label(seconds: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn advanced_blur_defaults_on_windows_and_persists_disabled() {
+        let old = Library::from_json("{}").unwrap();
+        assert_eq!(old.advanced_blur_enabled(), cfg!(target_os = "windows"));
+        assert_eq!(
+            Library::default().advanced_blur_enabled(),
+            old.advanced_blur_enabled()
+        );
+        let mut library = old;
+        library.advanced_blur = Some(false);
+        let json = serde_json::to_string(&library).unwrap();
+        assert!(!Library::from_json(&json).unwrap().advanced_blur_enabled());
+    }
     #[test]
     fn older_library_discards_previews_but_preserves_imports_and_favorites() {
         let mut local = Track::from_path("用户歌曲.mp3".into());

@@ -75,3 +75,19 @@ fn native_queue_menu() {
     let report = std::fs::read_to_string(report_path).expect("queue verification report");
     assert!(report.starts_with("PASS:"), "{report}");
 }
+
+#[cfg(all(test, feature = "ui-verify", target_os = "windows"))]
+#[::core::prelude::v1::test]
+#[ignore = "opens a native window; set MIG_VERIFY_BLUR and isolated MIG_MUSIC_DATA_DIR"]
+fn native_advanced_blur() {
+    assert!(std::env::var_os("MIG_VERIFY_BLUR").is_some());
+    assert!(std::env::var_os("MIG_MUSIC_DATA_DIR").is_some());
+    let directory = std::env::var_os("MIG_VERIFY_UI").expect("set MIG_VERIFY_UI");
+    let directory = std::path::PathBuf::from(directory);
+    std::fs::create_dir_all(&directory).expect("blur verification directory");
+    let report = directory.join("result.txt");
+    std::fs::write(&report, "RUNNING\n").expect("reset blur verification report");
+    main();
+    let report = std::fs::read_to_string(report).expect("blur verification report");
+    assert!(report.starts_with("PASS:"), "{report}");
+}

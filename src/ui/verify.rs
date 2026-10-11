@@ -1,4 +1,5 @@
 //! Run window checks through GPUI's test input API
+mod advanced_blur;
 mod track_actions;
 use super::{MigApp, Page};
 use gpui_kit::test::TestWindowExt;
@@ -15,7 +16,10 @@ pub(crate) fn run(handle: AnyWindowHandle, view: Entity<MigApp>, directory: Path
     fs::create_dir_all(&directory).expect("create verification directory");
     cx.spawn(async move |cx| {
         let queue_only = std::env::var_os("MIG_VERIFY_QUEUE_MENU").is_some();
-        let result = if queue_only {
+        let blur_only = std::env::var_os("MIG_VERIFY_BLUR").is_some();
+        let result = if blur_only {
+            advanced_blur::verify(handle, &view, &directory, cx).await
+        } else if queue_only {
             match verify_queue_menu(handle, &view, cx).await {
                 Ok(()) => track_actions::verify(handle, &view, cx).await,
                 Err(error) => Err(error),
@@ -24,6 +28,7 @@ pub(crate) fn run(handle: AnyWindowHandle, view: Entity<MigApp>, directory: Path
             verify(handle, &view, &directory, cx).await
         };
         let report = match result {
+            Ok(()) if blur_only => "PASS: native GPU glyph blur, translated and wrapped lyrics, emoji, settings toggle and persistence.\n",
             Ok(()) if queue_only => "PASS: 20 queue menu cycles, keyboard favorite, track menu, collection picker, sidebar navigation, removal and properties.\n",
             Ok(()) => "PASS: native button input, audio playback, pause, seek, next/previous, favorites, search, queue, theme, minimum window, zoom, lyrics, missing-file recovery and online/source pages. Online playback checked when MIG_VERIFY_ONLINE is enabled.\n",
             Err(ref error) => error,

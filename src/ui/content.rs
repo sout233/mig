@@ -445,6 +445,39 @@ impl MigApp {
                     ),
             )
             .child(
+                h_flex()
+                    .py_4()
+                    .gap_6()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .gap_2()
+                            .child("使用高级模糊")
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(
+                                        "一百万以内最好的GPU Filter。有这么好的模糊效果怎么不早点告诉我？",
+                                    ),
+                            ),
+                    )
+                    .child(
+                        gpui_kit::component::switch::Switch::new("settings-advanced-blur")
+                            .accessibility_label("使用高级模糊")
+                            .checked(self.library.advanced_blur_enabled())
+                            .disabled(!cfg!(target_os = "windows"))
+                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                this.library.advanced_blur = Some(*checked);
+                                this.save();
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(
                 v_flex().gap_3().child("键盘快捷键").children(
                     [
                         "Space  播放 / 暂停",

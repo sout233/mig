@@ -31,3 +31,7 @@ lofty = "0.25.4"
 
 [target.'cfg(windows)'.build-dependencies]
 embed-resource = "3.0.12"
+
+[patch.crates-io]
+gpui-pre = { path = "vendor/gpui-pre" }
+gpui-pre-windows = { path = "vendor/gpui-pre-windows" }

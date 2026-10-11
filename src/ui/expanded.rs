@@ -556,6 +556,8 @@ impl MigApp {
             SharedString::from(format!("lyric-blur-{line_ix}")),
             if active || browsing {
                 0.0f32
+            } else if self.library.advanced_blur_enabled() {
+                0.10 + distance as f32 * 0.05
             } else {
                 0.08 + distance as f32 * 0.035
             },
@@ -627,6 +629,7 @@ impl MigApp {
                         translation,
                         blur,
                         scale,
+                        self.library.advanced_blur_enabled(),
                     )),
             )
             .on_click(cx.listener(move |this, _, window, cx| {

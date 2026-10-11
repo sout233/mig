@@ -1,7 +1,7 @@
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::{
     ContentMask, FontWeight, Hsla, IntoElement, Pixels, Point, SharedString, Styled, TextAlign,
-    TextStyle, WrappedLine, canvas, point, px,
+    TextStyle, Window, WrappedLine, canvas, point, px,
 };
 
 use std::rc::Rc;
@@ -27,15 +27,14 @@ struct LayoutCache {
     lines: Rc<TextLayout>,
 }
 
-/// Draw the current line once to keep it sharp
-/// Nearby inactive lines get extra offset copies for the soft blur
-/// TODO: 这东西的模糊效果有点拉
+/// Advanced blur samples the glyph texture on the GPU; the light mode uses offset copies
 pub(super) fn lyric_text(
     id: SharedString,
     original: SharedString,
     translation: Option<SharedString>,
     blur: f32,
     scale: f32,
+    advanced: bool,
 ) -> impl IntoElement {
     canvas(
         move |bounds, window, cx| {
@@ -45,7 +44,8 @@ pub(super) fn lyric_text(
                 window.rem_size() * blur
             };
 
-            let offsets = blur_offsets(radius);
+            let offsets = blur_offsets(if advanced { px(0.) } else { radius });
+            let gpu_radius = if advanced { radius } else { px(0.) };
             let mut style = window.text_style();
             let key = LayoutKey {
                 original: original.clone(),
@@ -60,7 +60,7 @@ pub(super) fn lyric_text(
             };
             let cache = window.use_keyed_state(id.clone(), cx, |_, _| LayoutCache::default());
             if cache.read(cx).key.as_ref() == Some(&key) {
-                return (cache.read(cx).lines.clone(), offsets);
+                return (cache.read(cx).lines.clone(), offsets, gpu_radius);
             }
 
             // Scrolling only changes the origin; reuse the shaped text until its inputs change
@@ -113,9 +113,9 @@ pub(super) fn lyric_text(
                 cache.key = Some(key);
                 cache.lines = layout.clone();
             });
-            (layout, offsets)
+            (layout, offsets, gpu_radius)
         },
-        move |bounds, (layout, offsets), window, cx| {
+        move |bounds, (layout, offsets, gpu_radius), window, cx| {
             let height = layout
                 .iter()
                 .map(|(line, height, gap)| line.size(*height).height + *gap)
@@ -125,19 +125,29 @@ pub(super) fn lyric_text(
                 bounds.origin + point(px(0.), (bounds.size.height - height).max(px(0.)) * 0.5);
 
             window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                for (line, line_height, gap) in layout.iter() {
-                    origin.y += *gap;
-                    for offset in &offsets {
-                        let _ = line.paint(
-                            origin + *offset,
-                            *line_height,
-                            TextAlign::Left,
-                            Some(bounds),
-                            window,
-                            cx,
-                        );
+                let paint = |window: &mut Window| {
+                    for (line, line_height, gap) in layout.iter() {
+                        origin.y += *gap;
+                        for offset in &offsets {
+                            line.paint(
+                                origin + *offset,
+                                *line_height,
+                                TextAlign::Left,
+                                Some(bounds),
+                                window,
+                                cx,
+                            )
+                            .expect("paint lyric glyphs");
+                        }
+                        origin.y += line.size(*line_height).height;
                     }
-                    origin.y += line.size(*line_height).height;
+                };
+                #[cfg(target_os = "windows")]
+                window.with_glyph_blur(gpu_radius, paint);
+                #[cfg(not(target_os = "windows"))]
+                {
+                    assert_eq!(gpu_radius, px(0.), "GPU glyph blur requires Windows");
+                    paint(window);
                 }
             });
         },
