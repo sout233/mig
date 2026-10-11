@@ -414,7 +414,7 @@ impl MigApp {
                     .id("expanded-stage")
                     .test_support()
                     .w_full()
-                    .max_w(rems(96.))
+                    .max_w(cover_size + window.rem_size() * if compact { 47. } else { 54. })
                     .items_stretch()
                     .flex_1()
                     .min_h_0()
@@ -660,7 +660,11 @@ impl MigApp {
         let cover = (window.bounds().size.height - window.rem_size() * 21.)
             .min(window.bounds().size.width * 0.36)
             .clamp(window.rem_size() * 10., window.rem_size() * 26.);
-        let fallback = window.bounds().size.width.min(window.rem_size() * 96.)
+        let fallback = window
+            .bounds()
+            .size
+            .width
+            .min(cover + window.rem_size() * if compact { 47. } else { 54. })
             - cover
             - window.rem_size() * if compact { 7. } else { 14. };
         let width = if handle.bounds().size.width > px(0.) {
