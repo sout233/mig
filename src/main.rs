@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_assets;
+mod download;
 mod library;
 mod local_metadata;
 mod online;

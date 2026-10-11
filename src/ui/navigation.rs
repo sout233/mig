@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone)]
 pub(super) struct NavigationEntry {
-    page: Page,
+    pub(super) page: Page,
     query: String,
     tip: &'static str,
     online_kind: crate::online::SearchKind,

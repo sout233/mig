@@ -449,7 +449,7 @@ impl MigApp {
             )
             .child(
                 h_flex()
-                    .w(rems(7.5))
+                    .w(rems(10.))
                     .justify_end()
                     .gap_2()
                     .child(
@@ -509,7 +509,8 @@ impl MigApp {
                                 };
                                 cx.notify();
                             })),
-                    ),
+                    )
+                    .child(self.track_more_button(cx)),
             )
     }
 

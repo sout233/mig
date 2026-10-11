@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+mod collections;
+pub(crate) use collections::LocalCollection;
 use std::{
     collections::HashSet,
     fs,
@@ -71,6 +73,7 @@ pub(crate) struct Library {
     pub(crate) tracks: Vec<Track>,
     pub(crate) recent: Vec<PathBuf>,
     pub(crate) playlists: Vec<SavedPlaylist>,
+    pub(crate) collections: Vec<LocalCollection>,
     pub(crate) dark: bool,
     pub(crate) sidebar_width: Option<f32>,
     pub(crate) panel_width: Option<f32>,

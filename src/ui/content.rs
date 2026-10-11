@@ -27,6 +27,13 @@ impl MigApp {
             .filter(|_| self.page == Page::Online)
         {
             info.name.clone()
+        } else if let Page::Collection(id) = self.page {
+            self.library
+                .collections
+                .iter()
+                .find(|item| item.id == id)
+                .map(|item| item.name.clone())
+                .unwrap_or_default()
         } else if self.query.is_empty() {
             self.page.title().to_owned()
         } else {
@@ -75,6 +82,7 @@ impl MigApp {
                     )
                     .children((self.page == Page::Online).then(|| self.online_controls(cx)))
                     .children(self.playlist_favorite_button(cx))
+                    .children(self.collection_controls(cx))
                     .child(
                         Button::new("play-all")
                             .label("播放全部")
@@ -106,7 +114,8 @@ impl MigApp {
                             .child("专辑"),
                     )
                     .child(div().w_12().text_right().child("时长"))
-                    .child(div().w_8()),
+                    .child(div().w_8())
+                    .children(matches!(self.page, Page::Collection(_)).then(|| div().w_8())),
             )
             .child(if self.visible.is_empty() {
                 self.empty_state(cx).into_any_element()
@@ -254,6 +263,25 @@ impl MigApp {
                     .on_click(cx.listener(move |this, _, _, cx| this.favorite(path.clone(), cx))),
             );
 
+        let row = if matches!(self.page, Page::Collection(_)) {
+            let path = track.path.clone();
+            row.child(
+                Button::new(SharedString::from(format!(
+                    "remove-collection-{}",
+                    track.id()
+                )))
+                .ghost()
+                .small()
+                .icon(Glyph::X)
+                .tooltip("移出收藏夹")
+                .accessibility_label("移出收藏夹")
+                .on_click(
+                    cx.listener(move |this, _, _, cx| this.remove_collection_track(&path, cx)),
+                ),
+            )
+        } else {
+            row
+        };
         super::motion::row(row, row_id, idle).into_any_element()
     }
 

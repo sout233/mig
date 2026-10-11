@@ -1,3 +1,4 @@
+mod collections;
 mod content;
 mod cover;
 mod expanded;
@@ -15,6 +16,7 @@ mod shell;
 mod smooth_scroll;
 mod tips;
 mod title;
+mod track_actions;
 #[cfg(feature = "ui-verify")]
 pub(crate) mod verify;
 
@@ -56,6 +58,7 @@ enum Page {
     Settings,
     Online,
     Sources,
+    Collection(u64),
 }
 
 impl Page {
@@ -68,6 +71,7 @@ impl Page {
             Self::Settings => "设置",
             Self::Online => "搜索",
             Self::Sources => "内置音源",
+            Self::Collection(_) => "收藏夹",
         }
     }
 }
@@ -92,6 +96,7 @@ pub(crate) struct MigApp {
     duration: f64,
     playing: bool,
     opening: bool,
+    downloading: bool,
     mode: PlayMode,
     progress: Entity<SliderState>,
     volume: Entity<SliderState>,
@@ -357,6 +362,7 @@ impl MigApp {
             duration: 0.,
             playing: false,
             opening: false,
+            downloading: false,
             mode: PlayMode::Sequential,
             progress,
             volume,
@@ -427,6 +433,12 @@ impl MigApp {
                         Page::Local => track.online.is_none(),
                         Page::Favorites => track.favorite,
                         Page::Recent => self.library.recent.contains(&track.path),
+                        Page::Collection(id) => self
+                            .library
+                            .collections
+                            .iter()
+                            .find(|item| item.id == id)
+                            .is_some_and(|item| item.tracks.contains(&track.path)),
                         _ => true,
                     }
             })

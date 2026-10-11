@@ -94,19 +94,31 @@ impl MigApp {
             None => window.focused(cx),
         };
         let entity = cx.entity().downgrade();
-        let menu = PopupMenu::build(window, cx, |menu, window, cx| {
+        let menu = PopupMenu::build(window, cx, |menu, _, _| {
             let menu = match previous_focus.clone() {
                 Some(focus) => menu.action_context(focus),
                 None => menu,
             };
-            self.queue_menu(path, entity, menu, window, cx)
+            self.queue_menu(path, entity, menu)
         });
+        self.present_track_popup(menu, position, previous_focus, window, cx);
+    }
+
+    pub(super) fn present_track_popup(
+        &mut self,
+        menu: Entity<PopupMenu>,
+        position: Point<Pixels>,
+        previous_focus: Option<FocusHandle>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        menu.focus_handle(cx).focus(window, cx);
         let subscription =
             cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, window, cx| {
                 let popup = this
                     .queue_popup
                     .take()
-                    .expect("dismiss the active queue menu");
+                    .expect("dismiss the active track menu");
                 if popup.menu.focus_handle(cx).is_focused(window) {
                     match popup.previous_focus {
                         Some(focus) => window.focus(&focus, cx),
@@ -129,8 +141,6 @@ impl MigApp {
         path: PathBuf,
         entity: WeakEntity<Self>,
         mut menu: PopupMenu,
-        window: &mut Window,
-        cx: &mut Context<PopupMenu>,
     ) -> PopupMenu {
         let favorite = self
             .queue
@@ -169,7 +179,6 @@ impl MigApp {
             ));
         }
 
-        menu.focus_handle(cx).focus(window, cx);
         menu
     }
 

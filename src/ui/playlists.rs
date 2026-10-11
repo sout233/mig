@@ -92,11 +92,26 @@ impl MigApp {
             .border_t_1()
             .border_color(cx.theme().border)
             .child(
-                div()
+                h_flex()
                     .px_2()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("收藏"),
+                    .justify_between()
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child("收藏"),
+                    )
+                    .child(
+                        Button::new("new-local-collection")
+                            .ghost()
+                            .small()
+                            .icon(Glyph::Plus)
+                            .tooltip("新建本地收藏夹")
+                            .accessibility_label("新建本地收藏夹")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.collection_dialog(None, None, window, cx)
+                            })),
+                    ),
             )
             .child(
                 Button::new("favorites")
@@ -134,6 +149,7 @@ impl MigApp {
                     .gap_2()
                     .overflow_y_scroll()
                     .smooth_scroll("favorite-playlists-wheel")
+                    .children(self.local_collection_links(cx))
                     .children(self.library.playlists.iter().map(|saved| {
                         let id = saved.info.id;
                         let fallback = || Icon::new(Glyph::ListMusic).small().into_any_element();

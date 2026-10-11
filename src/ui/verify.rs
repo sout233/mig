@@ -1,4 +1,5 @@
 //! Run window checks through GPUI's test input API
+mod track_actions;
 use super::{MigApp, Page};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{
@@ -15,12 +16,15 @@ pub(crate) fn run(handle: AnyWindowHandle, view: Entity<MigApp>, directory: Path
     cx.spawn(async move |cx| {
         let queue_only = std::env::var_os("MIG_VERIFY_QUEUE_MENU").is_some();
         let result = if queue_only {
-            verify_queue_menu(handle, &view, cx).await
+            match verify_queue_menu(handle, &view, cx).await {
+                Ok(()) => track_actions::verify(handle, &view, cx).await,
+                Err(error) => Err(error),
+            }
         } else {
             verify(handle, &view, &directory, cx).await
         };
         let report = match result {
-            Ok(()) if queue_only => "PASS: 20 queue menu open/close cycles and keyboard favorite.\n",
+            Ok(()) if queue_only => "PASS: 20 queue menu cycles, keyboard favorite, track menu, collection picker, sidebar navigation, removal and properties.\n",
             Ok(()) => "PASS: native button input, audio playback, pause, seek, next/previous, favorites, search, queue, theme, minimum window, zoom, lyrics, missing-file recovery and online/source pages. Online playback checked when MIG_VERIFY_ONLINE is enabled.\n",
             Err(ref error) => error,
         };
