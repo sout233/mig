@@ -6,6 +6,7 @@ use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
 pub(super) struct QueuePopup {
     pub(super) menu: Entity<PopupMenu>,
     pub(super) position: Point<Pixels>,
+    pub(super) anchor: Anchor,
     previous_focus: Option<FocusHandle>,
     _subscription: Subscription,
 }
@@ -101,13 +102,14 @@ impl MigApp {
             };
             self.queue_menu(path, entity, menu)
         });
-        self.present_track_popup(menu, position, previous_focus, window, cx);
+        self.present_track_popup(menu, position, Anchor::TopLeft, previous_focus, window, cx);
     }
 
     pub(super) fn present_track_popup(
         &mut self,
         menu: Entity<PopupMenu>,
         position: Point<Pixels>,
+        anchor: Anchor,
         previous_focus: Option<FocusHandle>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -130,6 +132,7 @@ impl MigApp {
         self.queue_popup = Some(QueuePopup {
             menu,
             position,
+            anchor,
             previous_focus,
             _subscription: subscription,
         });

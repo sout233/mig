@@ -7,14 +7,16 @@ use gpui_kit::component::{
 };
 
 impl MigApp {
-    pub(super) fn track_more_button(&self, cx: &mut Context<Self>) -> Button {
+    pub(super) fn track_more_button(&self, cx: &mut Context<Self>) -> Div {
+        let bounds = std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>));
+        let measured_bounds = bounds.clone();
         let button = Button::new("current-more").ghost();
         let button = if self.downloading {
             button.child(gpui_kit::component::spinner::Spinner::new().with_size(px(18.)))
         } else {
             button.icon(Glyph::Ellipsis)
         };
-        button
+        let button = button
             .disabled(self.current.is_none())
             .tooltip(if self.downloading {
                 "正在下载…"
@@ -22,10 +24,23 @@ impl MigApp {
                 "更多歌曲操作"
             })
             .accessibility_label("更多歌曲操作")
-            .on_click(cx.listener(|this, _, window, cx| this.open_current_menu(window, cx)))
+            .on_click(cx.listener(move |this, _, window, cx| {
+                let bounds = bounds.get().expect("more button has been laid out");
+                let position = point(bounds.right(), bounds.top() - window.rem_size() * 0.5);
+                this.open_current_menu(position, window, cx);
+            }));
+        div()
+            .flex_shrink_0()
+            .on_prepaint(move |bounds, _, _| measured_bounds.set(Some(bounds)))
+            .child(button)
     }
 
-    fn open_current_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn open_current_menu(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(track) = self.current.clone() else {
             return;
         };
@@ -72,11 +87,14 @@ impl MigApp {
             }
             menu
         });
-        let position = point(
-            window.bounds().size.width - window.rem_size() * 14.,
-            window.bounds().size.height - window.rem_size() * 13.,
+        self.present_track_popup(
+            menu,
+            position,
+            Anchor::BottomRight,
+            previous_focus,
+            window,
+            cx,
         );
-        self.present_track_popup(menu, position, previous_focus, window, cx);
     }
 
     fn track_properties(&self, track: Track, window: &mut Window, cx: &mut Context<Self>) {

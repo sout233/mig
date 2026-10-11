@@ -640,6 +640,7 @@ impl Render for MigApp {
                             .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
                             .child(
                                 anchored()
+                                    .anchor(popup.anchor)
                                     .position(popup.position)
                                     .snap_to_window_with_margin(px(8.))
                                     .child(popup.menu.clone()),
