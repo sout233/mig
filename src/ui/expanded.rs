@@ -308,14 +308,7 @@ impl MigApp {
             .min_w_0()
             .min_h_0();
 
-        if self.lyrics.is_empty() {
-            right = right.justify_center().gap_4().child(
-                div()
-                    .text_2xl()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child("暂无歌词"),
-            );
-        } else {
+        if !self.lyrics.is_empty() {
             let handle = self.lyrics_scroll.0.borrow().base_handle.clone();
             let edge = window.rem_size() * self.lyrics_row_height() * padding as f32;
             let viewport = if handle.bounds().size.height > px(0.) {
@@ -416,6 +409,7 @@ impl MigApp {
                     .w_full()
                     .max_w(cover_size + window.rem_size() * if compact { 47. } else { 54. })
                     .items_stretch()
+                    .when(self.lyrics.is_empty(), |stage| stage.justify_center())
                     .flex_1()
                     .min_h_0()
                     .px(if compact { rems(2.) } else { rems(4.) })
@@ -501,7 +495,7 @@ impl MigApp {
                                     .opacity(controls_reveal),
                             ),
                     )
-                    .child(right),
+                    .children((!self.lyrics.is_empty()).then_some(right)),
             );
 
         v_flex().flex_1().min_h_0().min_w_0().child(body)

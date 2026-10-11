@@ -186,15 +186,21 @@ async fn verify_expanded_layout(
                     let rem = window.rem_size();
                     let stage = window.find("expanded-stage").bounds();
                     let album = window.find("expanded-album-column").bounds();
-                    let lyrics = window.find("expanded-lyrics-column").bounds();
+                    let lyrics = window.try_find("expanded-lyrics-column");
                     let cover = window.find("expanded-cover").bounds();
                     let play = window.find("expanded-play").bounds();
                     assert!(
                         stage.size.height >= window.bounds().size.height - rem * 7.,
                         "expanded stage did not fill the window: {stage:?}"
                     );
-                    assert!((album.size.height - lyrics.size.height).abs() <= px(1.));
-                    assert!(lyrics.size.height >= stage.size.height - rem * 3.);
+                    if bilingual {
+                        let lyrics = lyrics.expect("lyrics column missing").bounds();
+                        assert!((album.size.height - lyrics.size.height).abs() <= px(1.));
+                        assert!(lyrics.size.height >= stage.size.height - rem * 3.);
+                    } else {
+                        assert!(lyrics.is_none(), "empty lyrics column should be hidden");
+                        assert!((album.center().x - stage.center().x).abs() <= px(1.));
+                    }
                     assert!((cover.size.width - cover.size.height).abs() <= px(1.));
                     assert!(
                         ((cover.top() + play.bottom()) * 0.5 - album.center().y).abs() <= rem * 2.,
