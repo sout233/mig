@@ -50,7 +50,7 @@ jobs:
       CARGO_BUILD_TARGET: ${{ matrix.target }}
       RELEASE_PLATFORM: ${{ matrix.platform }}
       RELEASE_ARCH: ${{ matrix.arch }}
-      PYTHON_COMMAND: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
+      PYTHON_COMMAND: ${{ matrix.platform == 'windows' && 'python' || 'python3' }}
     defaults:
       run:
         shell: bash
