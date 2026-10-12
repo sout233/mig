@@ -35,6 +35,17 @@ use gpui_kit::*;
 use smooth_scroll::ScrollTarget as _;
 use std::{path::PathBuf, time::Duration};
 
+pub(crate) const COMMAND_MODIFIER: &str = if cfg!(target_os = "macos") {
+    "cmd"
+} else {
+    "ctrl"
+};
+const COMMAND_LABEL: &str = if cfg!(target_os = "macos") {
+    "Cmd"
+} else {
+    "Ctrl"
+};
+
 actions!(
     music,
     [

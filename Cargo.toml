@@ -9,7 +9,8 @@ ui-verify = ["gpui-kit/test-support"]
 [dependencies]
 gpui-kit = "0.7.1"
 rodio = "0.20.1"
-rfd = { version = "0.17.2", default-features = false }
+rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal", "wayland"] }
+dirs = "6.0.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rquickjs = "0.11.0"

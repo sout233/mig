@@ -147,6 +147,7 @@ pub(super) fn lyric_text(
                 #[cfg(not(target_os = "windows"))]
                 {
                     assert_eq!(gpu_radius, px(0.), "GPU glyph blur requires Windows");
+                    let mut paint = paint;
                     paint(window);
                 }
             });

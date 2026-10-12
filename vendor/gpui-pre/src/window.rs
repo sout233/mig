@@ -4753,7 +4753,10 @@ impl Window {
             } else {
                 self.next_frame.scene.insert_primitive(MonochromeSprite {
                     order: 0,
+                    #[cfg(target_os = "windows")]
                     blur_radius: f32::from(self.glyph_blur_radius) * scale_factor,
+                    #[cfg(not(target_os = "windows"))]
+                    pad: 0,
                     bounds: bounds.dilate(self.glyph_blur_radius.scale(scale_factor)),
                     content_mask,
                     color: color.opacity(element_opacity),
@@ -4845,7 +4848,10 @@ impl Window {
 
             self.next_frame.scene.insert_primitive(PolychromeSprite {
                 order: 0,
+                #[cfg(target_os = "windows")]
                 blur_radius: f32::from(self.glyph_blur_radius) * scale_factor,
+                #[cfg(not(target_os = "windows"))]
+                pad: 0,
                 grayscale: false.into(),
                 bounds: bounds.dilate(self.glyph_blur_radius.scale(scale_factor)),
                 corner_radii: Default::default(),
@@ -4911,7 +4917,10 @@ impl Window {
 
         self.next_frame.scene.insert_primitive(MonochromeSprite {
             order: 0,
+            #[cfg(target_os = "windows")]
             blur_radius: 0.,
+            #[cfg(not(target_os = "windows"))]
+            pad: 0,
             bounds: final_bounds,
             content_mask,
             color: color.opacity(element_opacity),
@@ -5017,7 +5026,10 @@ impl Window {
 
         self.next_frame.scene.insert_primitive(PolychromeSprite {
             order: 0,
+            #[cfg(target_os = "windows")]
             blur_radius: 0.,
+            #[cfg(not(target_os = "windows"))]
+            pad: 0,
             grayscale: grayscale.into(),
             bounds: visible_bounds_snapped,
             content_mask,

@@ -14,57 +14,106 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_PROFILE_TEST_DEBUG: '0'
   RUSTUP_TOOLCHAIN: nightly-2026-05-05
-  CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
 jobs:
   build:
-    name: Build Windows x64
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }}
     if: ${{ !github.event.deleted }}
-    runs-on: windows-2025
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            arch: x86_64
+            runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - platform: macos
+            arch: amd64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - platform: macos
+            arch: arm64
+            runner: macos-15
+            target: aarch64-apple-darwin
+          - platform: linux
+            arch: amd64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - platform: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    env:
+      CARGO_BUILD_TARGET: ${{ matrix.target }}
+      RELEASE_PLATFORM: ${{ matrix.platform }}
+      RELEASE_ARCH: ${{ matrix.arch }}
+      PYTHON_COMMAND: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
     defaults:
       run:
-        shell: pwsh
+        shell: bash
     steps:
       - name: Check out tagged source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      - name: Install pinned Rust toolchain
-        run: rustup toolchain install $env:RUSTUP_TOOLCHAIN --profile minimal --no-self-update --target $env:CARGO_BUILD_TARGET
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake clang libclang-dev \
+            libasound2-dev libfontconfig1-dev libfreetype6-dev libglib2.0-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev \
+            libxcb1-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libegl1-mesa-dev libvulkan-dev libssl-dev libzstd-dev libgbm-dev
 
-      - name: Cache Rust dependencies and build outputs
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: windows-2025-release
-          env-vars: CARGO RUST CC CFLAGS CXX CMAKE LIBCLANG_PATH
+      - name: Configure macOS SDK and Metal compiler
+        if: runner.os == 'macOS'
+        run: |
+          export DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer
+          xcrun --find metal
+          xcrun --find metallib
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/lib" >> "$GITHUB_ENV"
+          echo "MACOSX_DEPLOYMENT_TARGET=12.0" >> "$GITHUB_ENV"
 
-      - name: Configure libclang
+      - name: Configure Windows libclang
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
           $clangDirectory = 'C:\Program Files\LLVM\bin'
           Get-Item -LiteralPath "$clangDirectory\libclang.dll" -ErrorAction Stop | Out-Null
           "LIBCLANG_PATH=$clangDirectory" >> $env:GITHUB_ENV
 
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --no-self-update --target "$CARGO_BUILD_TARGET"
+
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ${{ matrix.runner }}-${{ matrix.target }}-release
+          env-vars: CARGO RUST CC CFLAGS CXX CMAKE LIBCLANG_PATH SDKROOT DEVELOPER_DIR MACOSX_DEPLOYMENT_TARGET
+
+      - name: Run unit tests on native architecture
+        run: cargo test --locked --target "$CARGO_BUILD_TARGET" --bin mig -j 2
+
       - name: Build release binary
-        run: cargo "+$env:RUSTUP_TOOLCHAIN" build --locked --release --target $env:CARGO_BUILD_TARGET --bin mig -j 2
+        run: cargo build --locked --release --target "$CARGO_BUILD_TARGET" --bin mig -j 2
 
       - name: Package binary and checksum
-        run: |
-          $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Path dist | Out-Null
-          $archive = 'mig-windows-x86_64.zip'
-          Compress-Archive -LiteralPath "target\$env:CARGO_BUILD_TARGET\release\mig.exe" -DestinationPath "dist\$archive"
-          $hash = (Get-FileHash -LiteralPath "dist\$archive" -Algorithm SHA256).Hash.ToLowerInvariant()
-          [System.IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", "$hash  $archive`n", [System.Text.UTF8Encoding]::new($false))
+        run: '"$PYTHON_COMMAND" scripts/package-release.py --platform "$RELEASE_PLATFORM" --arch "$RELEASE_ARCH" --target "$CARGO_BUILD_TARGET" --output dist'
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: windows-x86_64-release
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
-            dist/mig-windows-x86_64.zip
-            dist/SHA256SUMS.txt
+            dist/*
           if-no-files-found: error
           compression-level: 0
 
@@ -78,12 +127,16 @@ jobs:
       - name: Download release artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: windows-x86_64-release
+          pattern: release-*
           path: dist
+          merge-multiple: true
 
       - name: Verify artifact checksum
         working-directory: dist
-        run: sha256sum --check SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cat ./*.sha256 > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
 
       - name: Create draft with assets and publish
         env:
@@ -97,7 +150,7 @@ jobs:
             release_flags+=(--prerelease --latest=false)
           fi
           gh release create "$RELEASE_TAG" \
-            dist/mig-windows-x86_64.zip dist/SHA256SUMS.txt \
+            dist/*.zip dist/*.tar.gz dist/SHA256SUMS.txt \
             --verify-tag --generate-notes --title "$RELEASE_TAG" --draft \
             "${release_flags[@]}"
           gh release edit "$RELEASE_TAG" --draft=false

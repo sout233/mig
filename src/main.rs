@@ -1,4 +1,7 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 
 mod app_assets;
 mod download;
@@ -25,14 +28,30 @@ fn main() {
             })
             .detach();
             cx.bind_keys([
-                KeyBinding::new("ctrl-o", ui::ImportMusic, Some("Music")),
+                KeyBinding::new(
+                    &format!("{}-o", ui::COMMAND_MODIFIER),
+                    ui::ImportMusic,
+                    Some("Music"),
+                ),
                 KeyBinding::new("alt-left", ui::NavigateBack, Some("Music")),
                 KeyBinding::new("alt-right", ui::NavigateForward, Some("Music")),
                 KeyBinding::new("escape", ui::CloseLyrics, Some("Music")),
-                KeyBinding::new("ctrl-f", ui::SearchMusic, Some("Music")),
+                KeyBinding::new(
+                    &format!("{}-f", ui::COMMAND_MODIFIER),
+                    ui::SearchMusic,
+                    Some("Music"),
+                ),
                 KeyBinding::new("space", ui::TogglePlayback, Some("Music && !Input")),
-                KeyBinding::new("ctrl-right", ui::NextTrack, Some("Music")),
-                KeyBinding::new("ctrl-left", ui::PreviousTrack, Some("Music")),
+                KeyBinding::new(
+                    &format!("{}-right", ui::COMMAND_MODIFIER),
+                    ui::NextTrack,
+                    Some("Music"),
+                ),
+                KeyBinding::new(
+                    &format!("{}-left", ui::COMMAND_MODIFIER),
+                    ui::PreviousTrack,
+                    Some("Music"),
+                ),
             ]);
 
             let options = WindowOptions {

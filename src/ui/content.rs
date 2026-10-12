@@ -478,10 +478,10 @@ impl MigApp {
             .child(
                 v_flex().gap_3().child("键盘快捷键").children(
                     [
-                        "Space  播放 / 暂停",
-                        "Ctrl+← / Ctrl+→  上一首 / 下一首",
-                        "Ctrl+O  导入音乐",
-                        "Ctrl+F  搜索音乐",
+                        "Space  播放 / 暂停".to_owned(),
+                        format!("{COMMAND_LABEL}+← / {COMMAND_LABEL}+→  上一首 / 下一首"),
+                        format!("{COMMAND_LABEL}+O  导入音乐"),
+                        format!("{COMMAND_LABEL}+F  搜索音乐"),
                     ]
                     .into_iter()
                     .map(|text| {

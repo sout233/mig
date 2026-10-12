@@ -352,7 +352,7 @@ impl MigApp {
                                     .ghost()
                                     .icon(Icon::default().path("icons/mig/previous-solid.svg"))
                                     .disabled(self.queue.is_empty())
-                                    .tooltip("上一首 · Ctrl+←")
+                                    .tooltip(format!("上一首 · {COMMAND_LABEL}+←"))
                                     .accessibility_label("上一首")
                                     .on_click(cx.listener(|this, _, _, _| {
                                         this.player.send(Command::Previous)
@@ -396,7 +396,7 @@ impl MigApp {
                                     .ghost()
                                     .icon(Icon::default().path("icons/mig/next-solid.svg"))
                                     .disabled(self.queue.is_empty())
-                                    .tooltip("下一首 · Ctrl+→")
+                                    .tooltip(format!("下一首 · {COMMAND_LABEL}+→"))
                                     .accessibility_label("下一首")
                                     .on_click(
                                         cx.listener(|this, _, _, _| {

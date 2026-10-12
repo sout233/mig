@@ -246,9 +246,8 @@ pub(crate) fn storage_directory() -> PathBuf {
     if let Some(directory) = std::env::var_os("MIG_MUSIC_DATA_DIR") {
         return directory.into();
     }
-    std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
+    dirs::data_dir()
+        .expect("无法定位应用数据目录，请设置 MIG_MUSIC_DATA_DIR")
         .join("MIG Music")
 }
 

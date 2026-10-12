@@ -710,7 +710,10 @@ impl Default for TransformationMatrix {
 #[expect(missing_docs)]
 pub struct MonochromeSprite {
     pub order: DrawOrder,
+    #[cfg(target_os = "windows")]
     pub blur_radius: f32,
+    #[cfg(not(target_os = "windows"))]
+    pub pad: u32,
     pub bounds: Bounds<ScaledPixels>,
     pub content_mask: ContentMask<ScaledPixels>,
     pub color: Hsla,
@@ -748,7 +751,10 @@ impl From<SubpixelSprite> for Primitive {
 #[expect(missing_docs)]
 pub struct PolychromeSprite {
     pub order: DrawOrder,
+    #[cfg(target_os = "windows")]
     pub blur_radius: f32,
+    #[cfg(not(target_os = "windows"))]
+    pub pad: u32,
     pub grayscale: PaddedBool32,
     pub opacity: f32,
     pub bounds: Bounds<ScaledPixels>,
