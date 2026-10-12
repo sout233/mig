@@ -75,6 +75,7 @@ pub(crate) struct Library {
     pub(crate) playlists: Vec<SavedPlaylist>,
     pub(crate) collections: Vec<LocalCollection>,
     pub(crate) dark: bool,
+    pub(crate) play_mode: crate::player::PlayMode,
     pub(crate) sidebar_width: Option<f32>,
     pub(crate) panel_width: Option<f32>,
     pub(crate) lyrics_spacing: Option<f32>,
@@ -338,6 +339,24 @@ pub(crate) fn time_label(seconds: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn playback_mode_persists_and_old_libraries_default_to_sequential() {
+        use crate::player::PlayMode;
+        assert_eq!(
+            Library::from_json("{}").unwrap().play_mode,
+            PlayMode::Sequential
+        );
+        for mode in [PlayMode::Sequential, PlayMode::Repeat, PlayMode::Shuffle] {
+            let library = Library {
+                play_mode: mode,
+                ..Library::default()
+            };
+            let json = serde_json::to_string(&library).unwrap();
+            assert_eq!(Library::from_json(&json).unwrap().play_mode, mode);
+        }
+        assert!(Library::from_json(r#"{"play_mode":"invalid"}"#).is_err());
+    }
 
     #[test]
     fn advanced_blur_defaults_on_windows_and_persists_disabled() {

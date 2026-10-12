@@ -97,7 +97,6 @@ pub(crate) struct MigApp {
     playing: bool,
     opening: bool,
     downloading: bool,
-    mode: PlayMode,
     progress: Entity<SliderState>,
     volume: Entity<SliderState>,
     lyrics_spacing: Entity<SliderState>,
@@ -326,6 +325,7 @@ impl MigApp {
                 match result {
                     Ok(library) => {
                         this.library = library;
+                        this.player.send(Command::Mode(this.library.play_mode));
                         let spacing = this.library.lyrics_spacing_percent();
                         this.lyrics_spacing
                             .update(cx, |state, cx| state.set_value(spacing, window, cx));
@@ -365,7 +365,6 @@ impl MigApp {
             playing: false,
             opening: false,
             downloading: false,
-            mode: PlayMode::Sequential,
             progress,
             volume,
             lyrics_spacing,
@@ -535,6 +534,13 @@ impl MigApp {
             }
         }
         self.refresh_filter();
+        self.save();
+        cx.notify();
+    }
+
+    fn cycle_play_mode(&mut self, cx: &mut Context<Self>) {
+        self.library.play_mode = self.library.play_mode.next();
+        self.player.send(Command::Mode(self.library.play_mode));
         self.save();
         cx.notify();
     }

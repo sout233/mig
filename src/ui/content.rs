@@ -381,11 +381,9 @@ impl MigApp {
                     )
                     .child(
                         Button::new("settings-mode")
-                            .label(self.mode.label())
+                            .label(self.library.play_mode.label())
                             .on_click(cx.listener(|this, _, _, cx| {
-                                this.mode = this.mode.next();
-                                this.player.send(Command::Mode(this.mode));
-                                cx.notify();
+                                this.cycle_play_mode(cx);
                             })),
                     ),
             )

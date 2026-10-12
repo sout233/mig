@@ -335,18 +335,16 @@ impl MigApp {
                                 Button::new("mode")
                                     .ghost()
                                     .small()
-                                    .icon(if self.mode == PlayMode::Shuffle {
+                                    .icon(if self.library.play_mode == PlayMode::Shuffle {
                                         Glyph::Shuffle
                                     } else {
                                         Glyph::Repeat
                                     })
-                                    .selected(self.mode != PlayMode::Sequential)
-                                    .tooltip(self.mode.label())
-                                    .accessibility_label(self.mode.label())
+                                    .selected(self.library.play_mode != PlayMode::Sequential)
+                                    .tooltip(self.library.play_mode.label())
+                                    .accessibility_label(self.library.play_mode.label())
                                     .on_click(cx.listener(|this, _, _, cx| {
-                                        this.mode = this.mode.next();
-                                        this.player.send(Command::Mode(this.mode));
-                                        cx.notify();
+                                        this.cycle_play_mode(cx);
                                     })),
                             )
                             .child(
