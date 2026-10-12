@@ -139,19 +139,17 @@ impl MigApp {
             .overflow_hidden()
             .shadow_lg()
             .bg(cx.theme().muted)
-            .child(
-                if let Some(path) = self.current.as_ref().and_then(|track| track.cover.clone()) {
-                    img(path)
-                        .size_full()
-                        .object_fit(ObjectFit::Cover)
-                        .rounded(cx.theme().radius_lg)
-                        .with_loading(fallback)
-                        .with_fallback(fallback)
-                        .into_any_element()
-                } else {
-                    fallback()
-                },
-            )
+            .child(if let Some(path) = self.expanded_cover_path() {
+                img(path)
+                    .size_full()
+                    .object_fit(ObjectFit::Cover)
+                    .rounded(cx.theme().radius_lg)
+                    .with_loading(fallback)
+                    .with_fallback(fallback)
+                    .into_any_element()
+            } else {
+                fallback()
+            })
     }
 
     fn expanded_controls(&self, cx: &mut Context<Self>) -> Div {
@@ -812,23 +810,22 @@ impl MigApp {
         let side = bounds.size.width;
         window.request_animation_frame();
 
-        let artwork =
-            if let Some(path) = self.current.as_ref().and_then(|track| track.cover.clone()) {
-                img(path)
-                    .size_full()
-                    .object_fit(ObjectFit::Cover)
-                    .into_any_element()
-            } else {
-                h_flex()
-                    .size_full()
-                    .justify_center()
-                    .child(
-                        Icon::new(Glyph::Disc3)
-                            .size(side * 0.2)
-                            .text_color(cx.theme().primary),
-                    )
-                    .into_any_element()
-            };
+        let artwork = if let Some(path) = self.expanded_cover_path() {
+            img(path)
+                .size_full()
+                .object_fit(ObjectFit::Cover)
+                .into_any_element()
+        } else {
+            h_flex()
+                .size_full()
+                .justify_center()
+                .child(
+                    Icon::new(Glyph::Disc3)
+                        .size(side * 0.2)
+                        .text_color(cx.theme().primary),
+                )
+                .into_any_element()
+        };
 
         Some(
             div()

@@ -145,6 +145,7 @@ pub(crate) struct MigApp {
     recommendations_requested: bool,
     cover_busy: bool,
     cover_requested: std::collections::HashSet<PathBuf>,
+    high_resolution_covers: std::collections::HashMap<PathBuf, cover::HighResolutionCover>,
     theme_cover: Option<PathBuf>,
     theme_accent: Option<u32>,
     cover_colors: std::collections::HashMap<PathBuf, Option<u32>>,
@@ -282,6 +283,7 @@ impl MigApp {
                             cx.notify();
                         }
                         this.load_covers(cx);
+                        this.load_high_resolution_cover(window, cx);
                         if !this.loading
                             && this.page == Page::Library
                             && !this.recommendations_requested
@@ -411,6 +413,7 @@ impl MigApp {
             recommendations_requested: false,
             cover_busy: false,
             cover_requested: std::collections::HashSet::new(),
+            high_resolution_covers: std::collections::HashMap::new(),
             theme_cover: None,
             theme_accent: None,
             cover_colors: std::collections::HashMap::new(),

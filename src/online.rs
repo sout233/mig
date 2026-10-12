@@ -6,7 +6,9 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
+mod cover_hd;
 mod crypto;
+pub(crate) use cover_hd::high_resolution_cover;
 mod http;
 mod playlist;
 mod recommendations;

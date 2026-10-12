@@ -2,7 +2,102 @@ use super::*;
 use gpui_kit::assets::IconName as Glyph;
 use gpui_kit::base::TestSupportExt;
 
+pub(super) enum HighResolutionCover {
+    Pending,
+    Downloaded(PathBuf),
+    Ready(PathBuf),
+    Failed,
+}
+
 impl MigApp {
+    pub(super) fn load_high_resolution_cover(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.expanded_lyrics {
+            return;
+        }
+        let Some(track) = self.current.as_ref().filter(|track| {
+            track
+                .online
+                .as_ref()
+                .is_some_and(|online| online.source == "wy")
+        }) else {
+            return;
+        };
+        let Some(thumbnail) = track.cover.clone() else {
+            return;
+        };
+        let downloaded = match self.high_resolution_covers.get(&thumbnail) {
+            Some(HighResolutionCover::Downloaded(path)) => Some(path.clone()),
+            Some(_) => return,
+            None => None,
+        };
+        let low_image = match window.get_asset::<ImgResourceLoader>(&thumbnail.clone().into(), cx) {
+            Some(Ok(image)) => image,
+            Some(Err(error)) => {
+                eprintln!("低清封面解码失败，无法升级高清封面：{error}");
+                self.high_resolution_covers
+                    .insert(thumbnail, HighResolutionCover::Failed);
+                return;
+            }
+            None => return,
+        };
+        if let Some(path) = downloaded {
+            match window.get_asset::<ImgResourceLoader>(&path.clone().into(), cx) {
+                Some(Ok(image)) => {
+                    let low_size = low_image.size(0);
+                    let high_size = image.size(0);
+                    if high_size.width > low_size.width && high_size.height > low_size.height {
+                        self.high_resolution_covers
+                            .insert(thumbnail, HighResolutionCover::Ready(path));
+                        cx.notify();
+                    } else {
+                        eprintln!("高清封面分辨率未提升：{low_size:?} → {high_size:?}");
+                        self.high_resolution_covers
+                            .insert(thumbnail, HighResolutionCover::Failed);
+                    }
+                }
+                Some(Err(error)) => {
+                    eprintln!("高清封面解码失败：{error}");
+                    self.high_resolution_covers
+                        .insert(thumbnail, HighResolutionCover::Failed);
+                }
+                None => {}
+            }
+            return;
+        }
+        let track = track.clone();
+        self.high_resolution_covers
+            .insert(thumbnail.clone(), HighResolutionCover::Pending);
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_spawn(async move { crate::online::high_resolution_cover(&track) })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                let state = match result {
+                    Ok(path) => HighResolutionCover::Downloaded(path),
+                    Err(error) => {
+                        eprintln!("高清封面获取失败（{}）：{error}", thumbnail.display());
+                        HighResolutionCover::Failed
+                    }
+                };
+                this.high_resolution_covers.insert(thumbnail, state);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub(super) fn expanded_cover_path(&self) -> Option<PathBuf> {
+        let thumbnail = self.current.as_ref()?.cover.as_ref()?;
+        match self.high_resolution_covers.get(thumbnail) {
+            Some(HighResolutionCover::Ready(path)) => Some(path.clone()),
+            _ => Some(thumbnail.clone()),
+        }
+    }
+
     pub(super) fn refresh_cover_theme(&mut self, cx: &mut Context<Self>) {
         let cover = self.current.as_ref().and_then(|track| track.cover.clone());
         if self.theme_cover == cover {

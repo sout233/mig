@@ -170,6 +170,15 @@ fn cover(http: &Http, track: &Track, directory: &Path) -> CoverResult {
 }
 
 pub(super) fn cache_cover(http: &Http, url: &str, directory: &Path) -> Result<PathBuf, String> {
+    cache_cover_with_size(http, url, directory, 256)
+}
+
+pub(super) fn cache_cover_with_size(
+    http: &Http,
+    url: &str,
+    directory: &Path,
+    side: u32,
+) -> Result<PathBuf, String> {
     let mut address = reqwest::Url::parse(url).map_err(|e| e.to_string())?;
     if !matches!(address.scheme(), "http" | "https") {
         return Err("暂无封面".into());
@@ -207,7 +216,16 @@ pub(super) fn cache_cover(http: &Http, url: &str, directory: &Path) -> Result<Pa
         .is_some_and(|host| host.ends_with(".music.126.net"))
     {
         let _ = address.set_scheme("https");
-        address.query_pairs_mut().append_pair("param", "256y256");
+        let query: Vec<_> = address
+            .query_pairs()
+            .filter(|(name, _)| name != "param")
+            .map(|(name, value)| (name.into_owned(), value.into_owned()))
+            .collect();
+        address.set_query(None);
+        address.query_pairs_mut().extend_pairs(query);
+        address
+            .query_pairs_mut()
+            .append_pair("param", &format!("{side}y{side}"));
     }
     let response = http.fetch(address.as_str(), &json!({"timeout":6000,"maxBytes":2*1024*1024,"headers":{"Referer":"https://music.163.com/"}}))?;
     let raw = &response.raw;
