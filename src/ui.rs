@@ -301,8 +301,12 @@ impl MigApp {
             let result = cx
                 .background_spawn(async {
                     let mut library = Library::load()?;
+                    let mut lyrics = Vec::new();
                     for track in &mut library.tracks {
-                        crate::local_metadata::enrich(track);
+                        let lines = crate::local_metadata::enrich(track);
+                        if library.current_track.as_ref() == Some(&track.path) {
+                            lyrics = lines;
+                        }
                         if track.cover.as_ref().is_some_and(|path| !path.is_file()) {
                             track.cover = None;
                         }
@@ -317,15 +321,29 @@ impl MigApp {
                             playlist.info.cover = None;
                         }
                     }
-                    Ok::<_, String>(library)
+                    let (queue, current) = library.restore_playback()?;
+                    Ok::<_, String>((library, queue, current, lyrics))
                 })
                 .await;
 
             let _ = this.update_in(cx, |this, window, cx| {
                 match result {
-                    Ok(library) => {
+                    Ok((library, queue, current, lyrics)) => {
                         this.library = library;
                         this.player.send(Command::Mode(this.library.play_mode));
+                        this.current = current.map(|ix| queue[ix].clone());
+                        this.duration = this
+                            .current
+                            .as_ref()
+                            .and_then(|track| track.duration)
+                            .unwrap_or(0.);
+                        this.queue = queue;
+                        this.lyrics_bilingual =
+                            lyrics.iter().any(|line| line.translation.is_some());
+                        this.lyrics = lyrics;
+                        this.player
+                            .send(Command::Restore(this.queue.clone(), current));
+                        this.refresh_cover_theme(cx);
                         let spacing = this.library.lyrics_spacing_percent();
                         this.lyrics_spacing
                             .update(cx, |state, cx| state.set_value(spacing, window, cx));
@@ -498,7 +516,7 @@ impl MigApp {
     }
 
     fn toggle_playback(&mut self, cx: &mut Context<Self>) {
-        if self.current.is_some() || self.opening {
+        if self.current.is_some() || self.opening || !self.queue.is_empty() {
             self.player.send(Command::Toggle);
         } else {
             self.play_visible(0, cx);
@@ -546,7 +564,14 @@ impl MigApp {
     }
 
     fn save(&self) {
-        self.player.send(Command::Save(self.library.clone()));
+        let mut library = self.library.clone();
+        library.playback_queue = self.queue.iter().map(|track| track.path.clone()).collect();
+        library.current_track = self
+            .current
+            .as_ref()
+            .filter(|current| self.queue.iter().any(|track| track.path == current.path))
+            .map(|track| track.path.clone());
+        self.player.send(Command::Save(library));
     }
 
     fn receive_events(&mut self, window: &mut Window, cx: &mut Context<Self>) {

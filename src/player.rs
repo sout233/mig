@@ -39,6 +39,7 @@ impl PlayMode {
 }
 
 pub(crate) enum Command {
+    Restore(Vec<Track>, Option<usize>),
     Play(Vec<Track>, usize),
     Queue(Vec<Track>),
     PlayNext(Vec<Track>, std::path::PathBuf),
@@ -177,6 +178,22 @@ impl Worker {
 
     fn handle(&mut self, command: Command) {
         match command {
+            Command::Restore(queue, current) => {
+                if current.is_some_and(|ix| ix >= queue.len()) {
+                    let _ = self
+                        .events
+                        .send(Event::Error("恢复播放队列的歌曲位置无效".into()));
+                    return;
+                }
+                self.cancel_preparation();
+                if let Some(sink) = self.sink.take() {
+                    sink.stop();
+                }
+                self.queue = queue;
+                self.ix = current.unwrap_or(0);
+                self.next_track = None;
+                self.playing = false;
+            }
             Command::Play(queue, ix) => {
                 if ix < queue.len() {
                     self.queue = queue;
@@ -407,6 +424,29 @@ fn next_index(ix: usize, len: usize, mode: PlayMode, automatic: bool) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn restore_playback_selects_song_without_starting_audio_or_network() {
+        let (events, receiver) = mpsc::channel();
+        let mut worker = Worker::new(events);
+        let queue = ["a.mp3", "online/wy/42", "c.mp3"]
+            .into_iter()
+            .map(|path| Track::from_path(path.into()))
+            .collect();
+        worker.handle(Command::Restore(queue, Some(1)));
+        assert_eq!(worker.ix, 1);
+        assert_eq!(
+            worker.queue[1].path,
+            std::path::PathBuf::from("online/wy/42")
+        );
+        assert!(!worker.playing);
+        assert!(worker.output.is_none() && worker.sink.is_none() && worker.preparation.is_none());
+        assert!(receiver.try_recv().is_err());
+        assert_eq!(worker.advance_index(false), 2);
+        worker.handle(Command::Restore(Vec::new(), Some(1)));
+        assert!(matches!(receiver.try_recv(), Ok(Event::Error(_))));
+        assert_eq!(worker.queue.len(), 3);
+    }
+
     #[test]
     fn queue_edits_preserve_playback_and_clear_emits_stop() {
         let (events, receiver) = mpsc::channel();

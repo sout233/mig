@@ -66,6 +66,7 @@ impl MigApp {
                     self.queue.insert(next, track);
                     self.player
                         .send(Command::PlayNext(self.queue.clone(), path.to_path_buf()));
+                    self.save();
                     cx.notify();
                     return;
                 }
@@ -80,6 +81,7 @@ impl MigApp {
             }
         }
         self.player.send(Command::Queue(self.queue.clone()));
+        self.save();
         cx.notify();
     }
 

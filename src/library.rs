@@ -76,6 +76,8 @@ pub(crate) struct Library {
     pub(crate) collections: Vec<LocalCollection>,
     pub(crate) dark: bool,
     pub(crate) play_mode: crate::player::PlayMode,
+    pub(crate) playback_queue: Vec<PathBuf>,
+    pub(crate) current_track: Option<PathBuf>,
     pub(crate) sidebar_width: Option<f32>,
     pub(crate) panel_width: Option<f32>,
     pub(crate) lyrics_spacing: Option<f32>,
@@ -83,6 +85,35 @@ pub(crate) struct Library {
 }
 
 impl Library {
+    pub(crate) fn restore_playback(&self) -> Result<(Vec<Track>, Option<usize>), String> {
+        let tracks: std::collections::HashMap<_, _> = self
+            .tracks
+            .iter()
+            .map(|track| (&track.path, track))
+            .collect();
+        let queue = self
+            .playback_queue
+            .iter()
+            .map(|path| {
+                tracks
+                    .get(path)
+                    .map(|track| (*track).clone())
+                    .ok_or_else(|| format!("上次播放队列中的歌曲不在音乐库中：{}", path.display()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let current = self
+            .current_track
+            .as_ref()
+            .map(|path| {
+                queue
+                    .iter()
+                    .position(|track| &track.path == path)
+                    .ok_or_else(|| format!("上次播放的歌曲不在播放队列中：{}", path.display()))
+            })
+            .transpose()?;
+        Ok((queue, current))
+    }
+
     pub(crate) fn advanced_blur_enabled(&self) -> bool {
         cfg!(target_os = "windows") && self.advanced_blur.unwrap_or(true)
     }
@@ -339,6 +370,62 @@ pub(crate) fn time_label(seconds: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn restore_playback_preserves_queue_order_and_current_song() {
+        let mut library = Library::default();
+        library.tracks = ["a.mp3", "b.mp3", "online/wy/42"]
+            .into_iter()
+            .map(|path| Track::from_path(path.into()))
+            .collect();
+        library.tracks[2].online = Some(crate::online::OnlineTrack {
+            source: "wy".into(),
+            music_info: serde_json::json!({"songmid":42}),
+        });
+        library.playback_queue = ["online/wy/42", "a.mp3", "b.mp3"]
+            .into_iter()
+            .map(PathBuf::from)
+            .collect();
+        library.current_track = Some("a.mp3".into());
+        let serialized = serde_json::to_string(&library).unwrap();
+        let library = Library::from_json(&serialized).unwrap();
+        let (queue, current) = library.restore_playback().unwrap();
+        assert_eq!(
+            queue
+                .iter()
+                .map(|track| track.path.clone())
+                .collect::<Vec<_>>(),
+            library.playback_queue
+        );
+        assert_eq!(current, Some(1));
+        assert_eq!(queue[0].online.as_ref().unwrap().music_info["songmid"], 42);
+        assert!(
+            Library::from_json("{}")
+                .unwrap()
+                .restore_playback()
+                .unwrap()
+                .0
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn restore_playback_reports_invalid_queue_and_current_song() {
+        let mut library = Library::default();
+        library.playback_queue.push("missing.mp3".into());
+        assert!(library.restore_playback().is_err());
+        library.tracks.push(Track::from_path("missing.mp3".into()));
+        library.current_track = Some("outside.mp3".into());
+        assert!(library.restore_playback().is_err());
+        library.current_track = None;
+        let (queue, current) = library.restore_playback().unwrap();
+        assert_eq!(queue.len(), 1);
+        assert_eq!(current, None);
+        library.playback_queue.clear();
+        let (queue, current) = library.restore_playback().unwrap();
+        assert!(queue.is_empty());
+        assert_eq!(current, None);
+    }
 
     #[test]
     fn playback_mode_persists_and_old_libraries_default_to_sequential() {
