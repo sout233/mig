@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: nightly-2026-05-05
+  CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+jobs:
+  build:
+    name: Build Windows x64
+    if: ${{ !github.event.deleted }}
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install $env:RUSTUP_TOOLCHAIN --profile minimal --no-self-update --target $env:CARGO_BUILD_TARGET
+
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: windows-2025-release
+          env-vars: CARGO RUST CC CFLAGS CXX CMAKE LIBCLANG_PATH
+
+      - name: Configure libclang
+        run: |
+          $clangDirectory = 'C:\Program Files\LLVM\bin'
+          Get-Item -LiteralPath "$clangDirectory\libclang.dll" -ErrorAction Stop | Out-Null
+          "LIBCLANG_PATH=$clangDirectory" >> $env:GITHUB_ENV
+
+      - name: Build release binary
+        run: cargo "+$env:RUSTUP_TOOLCHAIN" build --locked --release --target $env:CARGO_BUILD_TARGET --bin mig -j 2
+
+      - name: Package binary and checksum
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path dist | Out-Null
+          $archive = 'mig-windows-x86_64.zip'
+          Compress-Archive -LiteralPath "target\$env:CARGO_BUILD_TARGET\release\mig.exe" -DestinationPath "dist\$archive"
+          $hash = (Get-FileHash -LiteralPath "dist\$archive" -Algorithm SHA256).Hash.ToLowerInvariant()
+          [System.IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", "$hash  $archive`n", [System.Text.UTF8Encoding]::new($false))
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-x86_64-release
+          path: |
+            dist/mig-windows-x86_64.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: windows-x86_64-release
+          path: dist
+
+      - name: Verify artifact checksum
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS.txt
+
+      - name: Create draft with assets and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          release_flags=()
+          if [[ "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            release_flags+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" \
+            dist/mig-windows-x86_64.zip dist/SHA256SUMS.txt \
+            --verify-tag --generate-notes --title "$RELEASE_TAG" --draft \
+            "${release_flags[@]}"
+          gh release edit "$RELEASE_TAG" --draft=false
