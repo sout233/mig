@@ -253,6 +253,7 @@ impl MigApp {
             )
             .child(
                 Popover::new("expanded-volume-popover")
+                    .p_2()
                     .anchor(Anchor::BottomRight)
                     .trigger(
                         Button::new("expanded-volume")
@@ -265,13 +266,7 @@ impl MigApp {
                             })
                             .accessibility_label("调整音量"),
                     )
-                    .content(move |_, _, _| {
-                        v_flex()
-                            .w(rems(12.))
-                            .p_4()
-                            .gap_3()
-                            .child(Slider::new(&volume))
-                    }),
+                    .content(move |_, _, _| v_flex().w(rems(10.)).child(Slider::new(&volume))),
             )
     }
 

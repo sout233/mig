@@ -466,6 +466,7 @@ impl MigApp {
                     )
                     .child(
                         Popover::new("volume-popover")
+                            .p_2()
                             .anchor(Anchor::BottomRight)
                             .trigger(
                                 Button::new("volume")
@@ -480,13 +481,12 @@ impl MigApp {
                             )
                             .content(move |_, _, cx| {
                                 v_flex()
-                                    .w(rems(12.))
+                                    .w(rems(10.))
                                     .child(
                                         div()
                                             .id("volume-slider")
                                             .test_support()
                                             .w_full()
-                                            .py_2()
                                             .child(Slider::new(&volume)),
                                     )
                                     .text_color(cx.theme().popover_foreground)
